@@ -1,3 +1,4 @@
+The repo comes from https://github.com/michel-meneses/great-opencl-examples.
 # Great OpenCL Examples
 This repository provides some free, organized, ready-to-compile and well-documented OpenCL C++ code examples.  [OpenCL](https://www.khronos.org/registry/OpenCL/) (Open Computing Language) is a royalty-free framework for parallel programming of heterogeneous systems consisting of different processing units (*e.g.* CPU, GPU, FPGA, DSP).  The purpose of this repository is to serve as a reference for everyone interested in learning how to use OpenCL C++ to develop portable applications based on parallel computing. It was first created as a supplemental reference for the Hardware/Software Interface course offered by the [Computer Science Department](http://computacao.ufs.br/pagina/4193) of Universidade Federal de Sergipe during the first semester of 2019.
 
