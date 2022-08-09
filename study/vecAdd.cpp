@@ -16,7 +16,7 @@
 
 const int DATA_SIZE = 10;
 
-int main(void) {
+int main() {
   /* 1. get platform & device information */
   // (1) check how many OpenCL platforms current system has.
   cl_uint numPlatforms;
@@ -24,7 +24,7 @@ int main(void) {
   err = clGetPlatformIDs(0, NULL, &numPlatforms);
   if (err != CL_SUCCESS) {
     std::cout << "Your system has 0 OpenCL platform." << std::endl;
-    return 0;
+    return err;
   }
   // (2) According to the number of OpenCL platforms current system has to
   // mallocate memory so that we can store the information of all available
@@ -34,7 +34,7 @@ int main(void) {
   if (CL_SUCCESS != err) {
     std::cout << "Your system has no OpenCL platforms for you to use."
               << std::endl;
-    return 0;
+    return err;
   }
   // (3) Obtain the length of all platforms name and version and store them.
   size_t stringLength;
@@ -87,7 +87,7 @@ int main(void) {
   if (err != CL_SUCCESS) {
     std::cout << "Current platform " << candidatePlatforms[selectPlatform]
               << " has no supported device." << std::endl;
-    return 0;
+    return err;
   }
   std::vector<cl_device_id> deviceIDs(numDevices);
   err = clGetDeviceIDs(selectedPlatformID, deviceType, numDevices,
@@ -129,19 +129,20 @@ int main(void) {
     std::cout << "Your system has no such OpenCL device "
               << candidateDevices[selectDevice] << "." << std::endl;
 
-  // cl_platform_id first_platform_id;
-  // clGetPlatformIDs(1, &first_platform_id, &num_platforms);
+  // 2. create context
+  cl_context context = nullptr;
+  cl_context_properties contextProperties[] = {
+      CL_CONTEXT_PLATFORM, (cl_context_properties)selectedPlatformID, 0};
+  context = clCreateContextFromType(contextProperties, CL_DEVICE_TYPE_CPU,
+                                    nullptr, nullptr, &err);
+  if ((CL_SUCCESS != err) || (NULL == context)) {
+    std::cout
+        << "Couldn't create a context, clCreateContextFromType() returned "
+        << err << std::endl;
+    return err;
+  }
 
-  // [> 2. create context <]
-  // cl_int err_num;
-  // cl_context context = nullptr;
-  // cl_context_properties context_prop[] = {
-  //     CL_CONTEXT_PLATFORM, (cl_context_properties)first_platform_id, 0};
-  // context = clCreateContextFromType(context_prop, CL_DEVICE_TYPE_CPU,
-  // nullptr,
-  //                                   nullptr, &err_num);
-  //
-  // [> 3. create command queue <]
+  // 3. create command queue
   // cl_command_queue command_queue;
   // cl_device_id *devices;
   // size_t device_buffer_size = -1;
