@@ -52,9 +52,10 @@ int main(void) {
                       &platformVersions[i][0], NULL);
   }
   // (4) Select platform
-  std::vector<std::string> candidatePlatforms = {"Intel", "NVIDIA"};
+  std::vector<std::string> candidatePlatforms = {"Intel(R) CPU",
+                                                 "Intel(R) OpenCL", "NVIDIA"};
   uint32_t selectPlatform = 0;
-  cl_platform_id *selectedPlatformIDp = NULL;
+  cl_platform_id selectedPlatformID = NULL;
   for (uint32_t platformIndex = 0; platformIndex < numPlatforms;
        platformIndex++) {
     char *curPlatformName = &platformNames[platformIndex][0];
@@ -66,31 +67,67 @@ int main(void) {
         charIndex++;
         stringIndex++;
         if (!(charIndex ^ candidatePlatforms[selectPlatform].size())) {
-          selectedPlatformIDp = &platformIDs[platformIndex];
+          selectedPlatformID = platformIDs[platformIndex];
           break;
         }
       }
-      if (selectedPlatformIDp != NULL)
+      if (selectedPlatformID != NULL)
         break;
     }
-    if (selectedPlatformIDp != NULL)
+    if (selectedPlatformID != NULL)
       break;
   }
-  if (selectedPlatformIDp == NULL)
+  if (selectedPlatformID == NULL)
     std::cout << "Your system has no such OpenCL platform "
               << candidatePlatforms[selectPlatform] << "." << std::endl;
   // (5)Check how many devices current platform has and store their information.
   cl_uint numDevices = 0;
   cl_device_type deviceType = CL_DEVICE_TYPE_CPU; // select one device type
-  err = clGetDeviceIDs(*selectedPlatformIDp, deviceType, 0, NULL, &numDevices);
+  err = clGetDeviceIDs(selectedPlatformID, deviceType, 0, NULL, &numDevices);
   if (err != CL_SUCCESS) {
     std::cout << "Current platform " << candidatePlatforms[selectPlatform]
               << " has no supported device." << std::endl;
     return 0;
   }
-  cl_device_id deviceIDs[numDevices];
-  err = clGetDeviceIDs(*selectedPlatformIDp, deviceType, numDevices, deviceIDs,
-                       NULL);
+  std::vector<cl_device_id> deviceIDs(numDevices);
+  err = clGetDeviceIDs(selectedPlatformID, deviceType, numDevices,
+                       &deviceIDs[0], NULL);
+  // (6)Obtain device info like obtaining platform info.
+  std::vector<std::vector<char>> deviceNames(numDevices);
+  for (uint32_t i = 0; i < numDevices; i++) {
+    err = clGetDeviceInfo(deviceIDs[i], CL_DEVICE_NAME, 0, NULL, &stringLength);
+    deviceNames[i].resize(stringLength);
+    err = clGetDeviceInfo(deviceIDs[i], CL_DEVICE_NAME, stringLength,
+                          &deviceNames[i][0], NULL);
+  }
+  // (7)Select device like selecting platform.
+  std::vector<std::string> candidateDevices = {"Intel(R) Core(TM)",
+                                               "Intel(R) HD", "NVIDIA"};
+  uint32_t selectDevice = 0;
+  cl_device_id selectedDeviceID = NULL;
+  for (uint32_t deviceIndex = 0; deviceIndex < numDevices; deviceIndex++) {
+    char *curDeviceName = &deviceNames[deviceIndex][0];
+    for (uint32_t charIndex = 0; charIndex < deviceNames[deviceIndex].size();
+         charIndex++) {
+      uint32_t stringIndex = 0;
+      while (curDeviceName[charIndex] ==
+             candidateDevices[selectDevice][stringIndex]) {
+        charIndex++;
+        stringIndex++;
+        if (!(charIndex ^ candidateDevices[selectDevice].size())) {
+          selectedDeviceID = deviceIDs[deviceIndex];
+          break;
+        }
+      }
+      if (selectedDeviceID != NULL)
+        break;
+    }
+    if (selectedDeviceID != NULL)
+      break;
+  }
+  if (selectedDeviceID == NULL)
+    std::cout << "Your system has no such OpenCL device "
+              << candidateDevices[selectDevice] << "." << std::endl;
 
   // cl_platform_id first_platform_id;
   // clGetPlatformIDs(1, &first_platform_id, &num_platforms);
