@@ -5,6 +5,7 @@
   > Created Time: Mon 08 Aug 2022 09:16:47 PM CST
  ************************************************************************/
 
+
 #include <cstdint>
 #include <fstream>
 #include <iostream>
@@ -18,7 +19,7 @@ const int DATA_SIZE = 10;
 
 int main() {
   /* 1. get platform & device information */
-  // (1) check how many OpenCL platforms current system has.
+  // (1) Check how many OpenCL platforms current system has.
   cl_uint numPlatforms;
   cl_int err = CL_SUCCESS;
   err = clGetPlatformIDs(0, NULL, &numPlatforms);
@@ -101,8 +102,7 @@ int main() {
                           &deviceNames[i][0], NULL);
   }
   // (7)Select device like selecting platform.
-  std::vector<std::string> candidateDevices = {"Intel(R) Core(TM)",
-                                               "Intel(R) HD", "NVIDIA"};
+  std::vector<std::string> candidateDevices = {"Intel(R)", "NVIDIA"};
   uint32_t selectDevice = 0;
   cl_device_id selectedDeviceID = NULL;
   for (uint32_t deviceIndex = 0; deviceIndex < numDevices; deviceIndex++) {
@@ -130,6 +130,13 @@ int main() {
               << candidateDevices[selectDevice] << "." << std::endl;
 
   // 2. create context
+  // The context is the core of the opencl program and the only channel for the
+  // interaction between the host and the device. It is the basis for functions
+  // such as memory application maintenance and command queue creation.
+  // Different plaforms can apply for different contexts. The memory in
+  // different contexts cannot be directly shared. The memory of different
+  // devices under the same context is the same and can be accessed by each
+  // other.
   cl_context context = nullptr;
   cl_context_properties contextProperties[] = {
       CL_CONTEXT_PLATFORM, (cl_context_properties)selectedPlatformID, 0};
@@ -143,86 +150,129 @@ int main() {
   }
 
   // 3. create command queue
-  // cl_command_queue command_queue;
-  // cl_device_id *devices;
-  // size_t device_buffer_size = -1;
-  //
-  // clGetContextInfo(context, CL_CONTEXT_DEVICES, 0, nullptr,
-  //                  &device_buffer_size);
-  // devices = new cl_device_id[device_buffer_size / sizeof(cl_device_id)];
-  // clGetContextInfo(context, CL_CONTEXT_DEVICES, device_buffer_size, devices,
-  //                  nullptr);
-  // command_queue = clCreateCommandQueue(context, devices[0], 0, nullptr);
-  // delete[] devices;
-  //
-  // [> 4. create program <]
-  // std::ifstream kernel_file("vector_add.cl", std::ios::in);
-  // std::ostringstream oss;
-  //
-  // oss << kernel_file.rdbuf();
-  // std::string srcStdStr = oss.str();
-  // const char *srcStr = srcStdStr.c_str();
-  // cl_program program;
-  // program = clCreateProgramWithSource(context, 1, (const char **)&srcStr,
-  //                                     nullptr, nullptr);
-  //
-  // [> 5. build program <]
-  // clBuildProgram(program, 0, nullptr, nullptr, nullptr, nullptr);
-  //
-  // [> 6. create kernel <]
-  // cl_kernel kernel;
-  // kernel = clCreateKernel(program, "vector_add", nullptr);
-  //
-  // [> 7. set input data && create memory object <]
-  // float output[DATA_SIZE];
-  // float input_x[DATA_SIZE];
-  // float input_y[DATA_SIZE];
-  // for (int i = 0; i < DATA_SIZE; i++) {
-  //   input_x[i] = (float)i;
-  //   input_y[i] = (float)(2 * i);
-  // }
-  //
-  // cl_mem mem_object_x;
-  // cl_mem mem_object_y;
-  // cl_mem mem_object_output;
-  // mem_object_x =
-  //     clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-  //                    sizeof(float) * DATA_SIZE, input_x, nullptr);
-  // mem_object_y =
-  //     clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-  //                    sizeof(float) * DATA_SIZE, input_y, nullptr);
-  // mem_object_output = clCreateBuffer(
-  //     context, CL_MEM_READ_WRITE, sizeof(float) * DATA_SIZE, nullptr,
-  //     nullptr);
-  //
-  // [> 8. set kernel argument <]
-  // clSetKernelArg(kernel, 0, sizeof(cl_mem), &mem_object_x);
-  // clSetKernelArg(kernel, 1, sizeof(cl_mem), &mem_object_y);
-  // clSetKernelArg(kernel, 2, sizeof(cl_mem), &mem_object_output);
-  //
-  // [> 9. send kernel to execute <]
-  // size_t globalWorkSize[1] = {DATA_SIZE};
-  // size_t localWorkSize[1] = {1};
-  // clEnqueueNDRangeKernel(command_queue, kernel, 1, nullptr, globalWorkSize,
-  //                        localWorkSize, 0, nullptr, nullptr);
-  //
-  // [> 10. read data from output <]
-  // clEnqueueReadBuffer(command_queue, mem_object_output, CL_TRUE, 0,
-  //                     DATA_SIZE * sizeof(float), output, 0, nullptr,
-  //                     nullptr);
-  // for (int i = 0; i < DATA_SIZE; i++) {
-  //   std::cout << output[i] << " ";
-  // }
-  // std::cout << std::endl;
-  //
-  // [> 11. clean up <]
-  // clRetainMemObject(mem_object_x);
-  // clRetainMemObject(mem_object_y);
-  // clRetainMemObject(mem_object_output);
-  // clReleaseCommandQueue(command_queue);
-  // clReleaseKernel(kernel);
-  // clReleaseProgram(program);
-  // clReleaseContext(context);
+  // Communication with a device occurs by submitting commands to a command
+  // queue. The command queue is the mechanism that the host uses to request
+  // action by the device. Once the host decides which devices to work with and
+  // a context is created, one command queue needs to be created per device
+  // (i.e., each command queue is associated with only one device). Whenever the
+  // host needs an action to be performed by a device, it will submit commands
+  // to the proper command queue.
+  // Any API that specifies hostdevice interaction will always begin with
+  // clEnqueue and require a command queue as a parameter
+  cl_command_queue commandQueue;
+  commandQueue = clCreateCommandQueue(context, selectedDeviceID, 0, nullptr);
+
+  // 4. create program
+  // OpenCL C code (written to run on an OpenCL device) is called a program. A
+  // program is a collection of functions called kernels, where kernels are
+  // units of execution that can be scheduled to run on a device.
+  std::ifstream kernelFile("vector_add.cl", std::ios::in);
+  std::ostringstream oss;
+
+  oss << kernelFile.rdbuf();
+  std::string srcStdStr = oss.str();
+  const char *srcStr = srcStdStr.c_str();
+  cl_program program;
+  program = clCreateProgramWithSource(context, 1, (const char **)&srcStr,
+                                      nullptr, nullptr);
+
+  // 5. build program
+  clBuildProgram(program, 0, nullptr, nullptr, nullptr, nullptr);
+
+  // 6. create kernel
+  // The final stage to obtain a cl_kernel object that can be used to execute
+  // kernels on a device is to extract the kernel from the cl_program.
+  // Extracting a kernel from a program is similar to obtaining an exported
+  // function from a dynamic library. The name of the kernel that the program
+  // exports is used to request it from the compiled program object.
+  cl_kernel kernel;
+  kernel = clCreateKernel(program, "vector_add", nullptr);
+
+  // 7. set input data && create memory object
+  // In order for data to be transferred to a device, it must first be
+  // encapsulated as a memory object. OpenCL defines two types of memory
+  // objects: buffers and images.
+  // Buffers are equivalent to arrays in C, created using malloc(),where data
+  // elements are stored contiguously in memory.
+  // Whenever a memory object is created, it is valid only within a single
+  // context.
+  // (1) Declare data in host
+  float output[DATA_SIZE];
+  int gidArr[DATA_SIZE];
+  float input_x[DATA_SIZE];
+  float input_y[DATA_SIZE];
+  for (int i = 0; i < DATA_SIZE; i++) {
+    input_x[i] = (float)i;
+    input_y[i] = (float)(2 * i);
+  }
+  // (2) Encapsulate them so that we can transfer date into and from devices.
+  cl_mem mem_object_x;
+  cl_mem mem_object_y;
+  cl_mem mem_object_output;
+  cl_mem mem_object_gidArr;
+  mem_object_x =
+      clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                     sizeof(float) * DATA_SIZE, input_x, nullptr);
+  mem_object_y =
+      clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                     sizeof(float) * DATA_SIZE, input_y, nullptr);
+  mem_object_output = clCreateBuffer(
+      context, CL_MEM_READ_WRITE, sizeof(float) * DATA_SIZE, nullptr, nullptr);
+  mem_object_gidArr = clCreateBuffer(context, CL_MEM_READ_WRITE,
+                                     sizeof(int) * DATA_SIZE, nullptr, nullptr);
+
+  // 8. set kernel argument
+  // A few more steps are required before the kernel can actually be executed.
+  // Unlike calling functions in regular C programs, we cannot simply call a
+  // kernel by providing a list of arguments.
+  // Executing a kernel requires dispatching it through an enqueue function.
+  clSetKernelArg(kernel, 0, sizeof(cl_mem), &mem_object_x);
+  clSetKernelArg(kernel, 1, sizeof(cl_mem), &mem_object_y);
+  clSetKernelArg(kernel, 2, sizeof(cl_mem), &mem_object_output);
+  clSetKernelArg(kernel, 3, sizeof(cl_mem), &mem_object_gidArr);
+
+  // 9. send kernel to execute
+  // After any required memory objects are transferred to the device and the
+  // kernel arguments are set, the kernel is ready to be executed.
+  // The clEnqueueNDRangeKernel() call is asynchronous: it will return
+  // immediately after the command is enqueued in the command queue and likely
+  // before the kernel has even started execution. Either clWaitForEvents() or
+  // clFinish() can be used to block execution on the host until the kernel
+  // completes.
+  size_t globalWorkSize[1] = {DATA_SIZE};
+  size_t localWorkSize[1] = {1};
+  clEnqueueNDRangeKernel(commandQueue, kernel, 1, nullptr, globalWorkSize,
+                         localWorkSize, 0, nullptr, nullptr);
+
+  // 10. read data from output
+  // Data contained in host memory is transferred to and from an OpenCL buffer
+  // using the commands clEnqueueWriteBuffer() and clEnqueueReadBuffer(),
+  // respectively. If a kernel that is dependent on such a buffer is executed on
+  // a discrete accelerator device such as a GPU, the buffer may be transferred
+  // to the device. The buffer is linked to a context, not a device, so it is
+  // the runtime that determines the precise time the data is moved.
+  clEnqueueReadBuffer(commandQueue, mem_object_output, CL_TRUE, 0,
+                      DATA_SIZE * sizeof(float), output, 0, nullptr, nullptr);
+  clEnqueueReadBuffer(commandQueue, mem_object_gidArr, CL_TRUE, 0,
+                      DATA_SIZE * sizeof(int), gidArr, 0, nullptr, nullptr);
+  for (int i = 0; i < DATA_SIZE; i++) {
+    std::cout << gidArr[i] << " ";
+  }
+  std::cout << std::endl;
+  for (int i = 0; i < DATA_SIZE; i++) {
+    std::cout << output[i] << " ";
+  }
+  std::cout << std::endl;
+
+  // 11. clean up
+  clRetainMemObject(mem_object_x);
+  clRetainMemObject(mem_object_y);
+  clRetainMemObject(mem_object_output);
+  clRetainMemObject(mem_object_gidArr);
+  clReleaseCommandQueue(commandQueue);
+  clReleaseKernel(kernel);
+  clReleaseProgram(program);
+  clReleaseContext(context);
 
   return 0;
 }
