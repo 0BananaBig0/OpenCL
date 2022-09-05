@@ -5,10 +5,11 @@
   > Created Time: Mon 08 Aug 2022 09:28:13 PM CST
  ************************************************************************/
 
-__kernel void vector_add(__global const float *input_x,
-                         __global const float *input_y,
-                         __global float *output) {
+__kernel void vecAdd(__global const int *input_x,
+                         __global const int *input_y,
+                         __global int *output) {
   int gid = get_global_id(0);
-
+  // printf("%d\n", gid);
+  // into
   output[gid] = input_x[gid] + input_y[gid];
 }
