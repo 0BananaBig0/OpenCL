@@ -55,7 +55,7 @@ int main() {
    // (4) Select platform
    std::vector<std::string> candidatePlatforms = {"Intel(R) CPU",
                                                   "Intel(R) OpenCL", "NVIDIA"};
-   uint32_t selectPlatform = 0;
+   uint32_t selectPlatform = 2;
    cl_platform_id selectedPlatformID = NULL;
    for(uint32_t platformIndex = 0; platformIndex < numPlatforms;
        platformIndex++) {
@@ -84,7 +84,7 @@ int main() {
    // (5)Check how many devices current platform has and store their
    // information.
    cl_uint numDevices = 0;
-   cl_device_type deviceType = CL_DEVICE_TYPE_CPU; // select one device type
+   cl_device_type deviceType = CL_DEVICE_TYPE_GPU; // select one device type
    err = clGetDeviceIDs(selectedPlatformID, deviceType, 0, NULL, &numDevices);
    if(err != CL_SUCCESS) {
       std::cout << "Current platform " << candidatePlatforms[selectPlatform]
@@ -105,7 +105,7 @@ int main() {
    }
    // (7)Select device like selecting platform.
    std::vector<std::string> candidateDevices = {"Intel(R)", "NVIDIA"};
-   uint32_t selectDevice = 0;
+   uint32_t selectDevice = 1;
    cl_device_id selectedDeviceID = NULL;
    for(uint32_t deviceIndex = 0; deviceIndex < numDevices; deviceIndex++) {
       char *curDeviceName = &deviceNames[deviceIndex][0];
@@ -142,7 +142,7 @@ int main() {
    cl_context context = NULL;
    cl_context_properties contextProperties[] = {
       CL_CONTEXT_PLATFORM, (cl_context_properties)selectedPlatformID, 0};
-   context = clCreateContextFromType(contextProperties, CL_DEVICE_TYPE_CPU,
+   context = clCreateContextFromType(contextProperties, CL_DEVICE_TYPE_GPU,
                                      NULL, NULL, &err);
    if((CL_SUCCESS != err) || (NULL == context)) {
       std::cout
@@ -187,8 +187,9 @@ int main() {
    // Extracting a kernel from a program is similar to obtaining an exported
    // function from a dynamic library. The name of the kernel that the program
    // exports is used to request it from the compiled program object.
-   cl_kernel kernel;
-   kernel = clCreateKernel(program, "vecAdd", NULL);
+   cl_kernel kernel_add, kernel_mul;
+   kernel_add = clCreateKernel(program, "vecAdd", NULL);
+   kernel_mul = clCreateKernel(program, "vecMul", NULL);
 
    // 7. set input data && create memory object
    // In order for data to be transferred to a device, it must first be
@@ -202,9 +203,11 @@ int main() {
    int output[DATA_SIZE];
    int input_x[DATA_SIZE];
    int input_y[DATA_SIZE];
+   int input_z[DATA_SIZE];
    for(int i = 0; i < DATA_SIZE; i++) {
       input_x[i] = i;
       input_y[i] = 2 * i;
+      input_z[i] = 3 * i;
    }
    // (2) Encapsulate them so that we can transfer date into and from devices.
    cl_mem mem_object_x;
@@ -226,9 +229,9 @@ int main() {
    // Unlike calling functions in regular C programs, we cannot simply call a
    // kernel by providing a list of arguments.
    // Executing a kernel requires dispatching it through an enqueue function.
-   clSetKernelArg(kernel, 1, sizeof(cl_mem), &mem_object_y);
-   clSetKernelArg(kernel, 2, sizeof(cl_mem), &mem_object_output);
-   clSetKernelArg(kernel, 0, sizeof(cl_mem), &mem_object_x);
+   clSetKernelArg(kernel_add, 1, sizeof(cl_mem), &mem_object_y);
+   clSetKernelArg(kernel_add, 2, sizeof(cl_mem), &mem_object_output);
+   clSetKernelArg(kernel_add, 0, sizeof(cl_mem), &mem_object_x);
 
    // 9. send kernel to execute
    // After any required memory objects are transferred to the device and the
@@ -240,7 +243,7 @@ int main() {
    // completes.
    size_t globalWorkSize[1] = {DATA_SIZE};
    size_t localWorkSize[1] = {1};
-   clEnqueueNDRangeKernel(commandQueue, kernel, 1, NULL, globalWorkSize,
+   clEnqueueNDRangeKernel(commandQueue, kernel_add, 1, NULL, globalWorkSize,
                           localWorkSize, 0, NULL, NULL);
 
    // 10. read data from output
@@ -257,13 +260,28 @@ int main() {
       std::cout << output[i] << " ";
    }
    std::cout << std::endl;
+   clRetainMemObject(mem_object_x);
+   cl_mem mem_object_z;
+   mem_object_z =
+      clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                     sizeof(int) * DATA_SIZE, input_z, NULL);
+   clSetKernelArg(kernel_mul, 1, sizeof(cl_mem), &mem_object_y);
+   clSetKernelArg(kernel_mul, 2, sizeof(cl_mem), &mem_object_output);
+   clSetKernelArg(kernel_mul, 0, sizeof(cl_mem), &mem_object_z);
+   clEnqueueNDRangeKernel(commandQueue, kernel_mul, 1, NULL, globalWorkSize,
+                          localWorkSize, 0, NULL, NULL);
+   clEnqueueReadBuffer(commandQueue, mem_object_output, CL_TRUE, 0,
+                       DATA_SIZE * sizeof(int), output, 0, NULL, NULL);
+   for(int i = 0; i < DATA_SIZE; i++) {
+      std::cout << output[i] << " ";
+   }
+   std::cout << std::endl;
 
    // 11. clean up
-   clRetainMemObject(mem_object_x);
    clRetainMemObject(mem_object_y);
    clRetainMemObject(mem_object_output);
    clReleaseCommandQueue(commandQueue);
-   clReleaseKernel(kernel);
+   clReleaseKernel(kernel_add);
    clReleaseProgram(program);
    clReleaseContext(context);
 

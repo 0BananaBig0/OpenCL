@@ -13,3 +13,11 @@ __kernel void vecAdd(__global const int *input_x,
   // into
   output[gid] = input_x[gid] + input_y[gid];
 }
+__kernel void vecMul(__global const int *input_z,
+                         __global const int *input_y,
+                         __global int *output) {
+  int gid = get_global_id(0);
+  // printf("%d\n", gid);
+  // into
+  output[gid] = input_z[gid] * input_y[gid];
+}
