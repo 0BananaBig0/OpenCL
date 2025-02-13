@@ -1,3 +1,4 @@
+#define CL_HPP_TARGET_OPENCL_VERSION 300
 #include <CL/opencl.hpp>
 #include <fstream>
 #include <iostream>
@@ -13,10 +14,11 @@ cl::Device getDefaultDevice();
 // Inicialize device and compile kernel code.
 void initializeDevice();
 // Sequentially performs the N-dimensional operation c = a + b.
-void seqSumArrays( int* a, int* b, int* c, const int N );
+void seqSumArrays( const int* a, const int* b, int* c, const size_t n );
 // Parallelly performs the N-dimensional operation c = a + b.
-void parSumArrays( int* a, int* b, int* c, const int N );
+void parSumArrays( int* a, int* b, int* c, const size_t n );
 // Check if the N-dimensional arrays c1 and c2 are equal.
+bool checkEquality( const int* c1, const int* c2, const size_t n );
 
 // =================================================================
 // ------------------------ Global Variables ------------------------
@@ -37,34 +39,38 @@ int main() {
     * */
 
    clock_t start, end;
-   const int EXECUTIONS = 10;
+   constexpr int executions = 10;
 
    /**
     * Prepare input arrays.
     * */
 
-   int ARRAYS_DIM = 1 << 20;
-   std::vector< int > a( ARRAYS_DIM, 3 );
-   std::vector< int > b( ARRAYS_DIM, 5 );
+   size_t arrays_dim = 1 << 30;
+   std::vector< int > a( arrays_dim );
+   std::vector< int > b( arrays_dim );
+   for( size_t i = 0; i < arrays_dim; i++ ) {
+      a[i] = 2 * static_cast< int >( i );
+      b[i] = 3 * static_cast< int >( i );
+   }
 
    /**
     * Prepare sequential and parallel outputs.
     * */
 
-   std::vector< int > cs( ARRAYS_DIM );
-   std::vector< int > cp( ARRAYS_DIM );
+   std::vector< int > cs( arrays_dim );
+   std::vector< int > cp( arrays_dim );
 
    /**
     * Sequentially sum arrays.
     * */
 
    start = clock();
-   for( int i = 0; i < EXECUTIONS; i++ ) {
-      seqSumArrays( a.data(), b.data(), cs.data(), ARRAYS_DIM );
+   for( int i = 0; i < executions; i++ ) {
+      seqSumArrays( a.data(), b.data(), cs.data(), arrays_dim );
    }
    end = clock();
-   double seqTime
-      = ( (double)10e3 * ( end - start ) ) / CLOCKS_PER_SEC / EXECUTIONS;
+   double seq_time = ( 10e3 * static_cast< double >( end - start ) )
+                   / CLOCKS_PER_SEC / executions;
 
    /**
     * Initialize OpenCL device.
@@ -77,18 +83,18 @@ int main() {
     * */
 
    start = clock();
-   for( int i = 0; i < EXECUTIONS; i++ ) {
-      parSumArrays( a.data(), b.data(), cp.data(), ARRAYS_DIM );
+   for( int i = 0; i < executions; i++ ) {
+      parSumArrays( a.data(), b.data(), cp.data(), arrays_dim );
    }
    end = clock();
-   double parTime
-      = ( (double)10e3 * ( end - start ) ) / CLOCKS_PER_SEC / EXECUTIONS;
+   double par_time = ( 10e3 * static_cast< double >( end - start ) )
+                   / CLOCKS_PER_SEC / executions;
 
    /**
     * Check if outputs are equal.
     * */
 
-   bool equal = checkEquality( cs.data(), cp.data(), ARRAYS_DIM );
+   bool equal = checkEquality( cs.data(), cp.data(), arrays_dim );
 
    /**
     * Print results.
@@ -97,10 +103,10 @@ int main() {
    std::cout << "Status: " << ( equal ? "SUCCESS!" : "FAILED!" ) << std::endl;
    std::cout << "Results: \n\ta[0] = " << a[0] << "\n\tb[0] = " << b[0]
              << "\n\tc[0] = a[0] + b[0] = " << cp[0] << std::endl;
-   std::cout << "Mean execution time: \n\tSequential: " << seqTime
-             << " ms;\n\tParallel: " << parTime << " ms." << std::endl;
+   std::cout << "Mean execution time: \n\tSequential: " << seq_time
+             << " ms;\n\tParallel: " << par_time << " ms." << std::endl;
    std::cout << "Performance gain: "
-             << ( 100 * ( seqTime - parTime ) / parTime ) << "\%\n";
+             << ( 100 * ( seq_time - par_time ) / par_time ) << "%\n";
    return 0;
 }
 
@@ -172,9 +178,7 @@ void initializeDevice() {
     * Compile kernel program which will run on the device.
     * */
 
-   cl::Program::Sources sources(
-      1,
-      std::make_pair( src.c_str(), src.length() + 1 ) );
+   cl::Program::Sources sources{ src };
    context = cl::Context( device );
    program = cl::Program( context, sources );
 
@@ -193,8 +197,8 @@ void initializeDevice() {
  * Sequentially performs the N-dimensional operation c = a + b.
  * */
 
-void seqSumArrays( int* a, int* b, int* c, const int N ) {
-   for( int i = 0; i < N; i++ ) {
+void seqSumArrays( const int* a, const int* b, int* c, const size_t n ) {
+   for( size_t i = 0; i < n; i++ ) {
       c[i] = a[i] + b[i];
    }
 }
@@ -203,50 +207,50 @@ void seqSumArrays( int* a, int* b, int* c, const int N ) {
  * Parallelly performs the N-dimensional operation c = a + b.
  * */
 
-void parSumArrays( int* a, int* b, int* c, const int N ) {
+void parSumArrays( int* a, int* b, int* c, const size_t n ) {
 
    /**
     * Create buffers and allocate memory on the device.
     * */
 
-   cl::Buffer aBuf(
+   cl::Buffer a_buf(
       context,
       CL_MEM_READ_ONLY | CL_MEM_HOST_NO_ACCESS | CL_MEM_COPY_HOST_PTR,
-      N * sizeof( int ),
+      n * sizeof( int ),
       a );
-   cl::Buffer bBuf(
+   cl::Buffer b_buf(
       context,
       CL_MEM_READ_ONLY | CL_MEM_HOST_NO_ACCESS | CL_MEM_COPY_HOST_PTR,
-      N * sizeof( int ),
+      n * sizeof( int ),
       b );
-   cl::Buffer cBuf( context,
-                    CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY,
-                    N * sizeof( int ) );
+   cl::Buffer c_buf( context,
+                     CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY,
+                     n * sizeof( int ) );
 
    /**
     * Set kernel arguments.
     * */
 
    cl::Kernel kernel( program, "sumArrays" );
-   kernel.setArg( 0, aBuf );
-   kernel.setArg( 1, bBuf );
-   kernel.setArg( 2, cBuf );
+   kernel.setArg( 0, a_buf );
+   kernel.setArg( 1, b_buf );
+   kernel.setArg( 2, c_buf );
 
    /**
     * Execute the kernel function and collect its result.
     * */
 
    cl::CommandQueue queue( context, device );
-   queue.enqueueNDRangeKernel( kernel, cl::NullRange, cl::NDRange( N ) );
-   queue.enqueueReadBuffer( cBuf, CL_TRUE, 0, N * sizeof( int ), c );
+   queue.enqueueNDRangeKernel( kernel, cl::NullRange, cl::NDRange( n ) );
+   queue.enqueueReadBuffer( c_buf, CL_TRUE, 0, n * sizeof( int ), c );
 }
 
 /**
  * Check if the N-dimensional arrays c1 and c2 are equal.
  * */
 
-bool checkEquality( int* c1, int* c2, const int N ) {
-   for( int i = 0; i < N; i++ ) {
+bool checkEquality( const int* c1, const int* c2, const size_t n ) {
+   for( size_t i = 0; i < n; i++ ) {
       if( c1[i] != c2[i] ) {
          return false;
       }
