@@ -6,3 +6,5 @@
 .clang-tidy
 .cache
 compile_commands.json
+.vimspector.json
+.vscode
