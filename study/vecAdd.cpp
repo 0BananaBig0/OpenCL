@@ -16,7 +16,7 @@
 #define CL_HPP_TARGET_OPENCL_VERSION 300
 #include <CL/opencl.hpp>
 
-#define DATA_SIZE 10
+#define DATA_SIZE 30
 
 int main() {
    /* 1. get platform & device information */
@@ -321,11 +321,15 @@ int main() {
    // before the kernel has even started execution. Either clWaitForEvents() or
    // clFinish() can be used to block execution on the host until the kernel
    // completes.
-   size_t global_work_size[1] = { DATA_SIZE };
-   size_t local_work_size[1] = { 1 };
+   // global_work_size must be a multiple of local_work_size in each dimension
+   // when using clEnqueueNDRangeKernel. If they are not, OpenCL will return an
+   // error or produce unexpected behavior.
+   constexpr size_t work_dim = 3;
+   size_t global_work_size[work_dim] = { DATA_SIZE, 1, 1 };
+   size_t local_work_size[work_dim] = { 10, 1, 1 };
    clEnqueueNDRangeKernel( command_queue,
                            kernel_add,
-                           1,
+                           work_dim,
                            nullptr,
                            global_work_size,
                            local_work_size,
@@ -359,12 +363,11 @@ int main() {
    clRetainMemObject( mem_object_x );
 
    // 11. repeate steps 7-10.
-   cl_mem mem_object_z;
-   mem_object_z = clCreateBuffer( context,
-                                  CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                  sizeof( int ) * DATA_SIZE,
-                                  input_z,
-                                  nullptr );
+   auto mem_object_z = clCreateBuffer( context,
+                                       CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                                       sizeof( int ) * DATA_SIZE,
+                                       input_z,
+                                       nullptr );
    clSetKernelArg( kernel_mul,
                    1,
                    sizeof( cl_mem ),
@@ -379,7 +382,7 @@ int main() {
                    static_cast< const void* >( &mem_object_z ) );
    clEnqueueNDRangeKernel( command_queue,
                            kernel_mul,
-                           1,
+                           work_dim,
                            nullptr,
                            global_work_size,
                            local_work_size,
