@@ -1,8 +1,9 @@
-#include <CL/cl.hpp>
+#define CL_HPP_TARGET_OPENCL_VERSION 300
+#include <CL/opencl.hpp>
 #include <fstream>
 #include <iostream>
 
-cl::Device get_default_device() {
+cl::Device getDefaultDevice() {
 
    /**
     * Search for all the OpenCL platforms available and check
@@ -44,7 +45,7 @@ int main() {
     * Select a device.
     * */
 
-   auto device = get_default_device();
+   auto device = getDefaultDevice();
 
    /**
     * Read OpenCL kernel file as a string.
@@ -58,9 +59,7 @@ int main() {
     * Compile the program which will run on the device.
     * */
 
-   cl::Program::Sources sources(
-      1,
-      std::make_pair( src.c_str(), src.length() + 1 ) );
+   cl::Program::Sources sources{ src };
    cl::Context context( device );
    cl::Program program( context, sources );
 
@@ -78,25 +77,26 @@ int main() {
     * Create buffers and allocate memory on the device.
     * */
 
-   char buf[16];
-   cl::Buffer memBuf( context,
-                      CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY,
-                      sizeof( buf ) );
+   constexpr size_t buf_size = 16;
+   char buf[buf_size];
+   cl::Buffer mem_buf( context,
+                       CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY,
+                       sizeof( buf ) );
    cl::Kernel kernel( program, "helloWorld", nullptr );
 
    /**
     * Set kernel argument.
     * */
 
-   kernel.setArg( 0, memBuf );
+   kernel.setArg( 0, mem_buf );
 
    /**
     * Run the kernel function and collect its result.
     * */
 
    cl::CommandQueue queue( context, device );
-   queue.enqueueTask( kernel );
-   queue.enqueueReadBuffer( memBuf, CL_TRUE, 0, sizeof( buf ), buf );
+   queue.enqueueNDRangeKernel( kernel, cl::NullRange, buf_size );
+   queue.enqueueReadBuffer( mem_buf, CL_TRUE, 0, sizeof( buf ), buf );
 
    /**
     * Print result.
