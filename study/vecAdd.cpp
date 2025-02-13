@@ -7,11 +7,13 @@
 
 #include <cstdint>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <stddef.h>
 #include <vector>
 
+#define CL_HPP_TARGET_OPENCL_VERSION 300
 #include <CL/opencl.hpp>
 
 #define DATA_SIZE 10
@@ -19,139 +21,158 @@
 int main() {
    /* 1. get platform & device information */
    // (1) Check how many OpenCL platforms current system has.
-   cl_uint numPlatforms;
+   cl_uint num_platforms;
    cl_int err = CL_SUCCESS;
-   err = clGetPlatformIDs( 0, NULL, &numPlatforms );
+   err = clGetPlatformIDs( 0, nullptr, &num_platforms );
    if( err != CL_SUCCESS ) {
       std::cout << "Your system has 0 OpenCL platform." << std::endl;
       return err;
    }
+
    // (2) According to the number of OpenCL platforms current system has to
    // mallocate memory so that we can store the information of all available
    // OpenCL platforms.
-   std::vector< cl_platform_id > platformIDs( numPlatforms );
-   err = clGetPlatformIDs( numPlatforms, &platformIDs[0], NULL );
+   std::vector< cl_platform_id > platform_ids( num_platforms );
+   err = clGetPlatformIDs( num_platforms, &platform_ids[0], nullptr );
    if( CL_SUCCESS != err ) {
       std::cout << "Your system has no OpenCL platforms for you to use."
                 << std::endl;
       return err;
    }
+
    // (3) Obtain the length of all platforms name and version and store them.
-   size_t stringLength;
-   std::vector< std::vector< char > > platformNames( numPlatforms );
-   std::vector< std::vector< char > > platformVersions( numPlatforms );
-   for( uint32_t i = 0; i < numPlatforms; i++ ) {
-      clGetPlatformInfo( platformIDs[i],
+   size_t string_length;
+   std::vector< std::string > platform_names( num_platforms );
+   std::vector< std::string > platform_versions( num_platforms );
+   for( uint32_t i = 0; i < num_platforms; i++ ) {
+      clGetPlatformInfo( platform_ids[i],
                          CL_PLATFORM_NAME,
                          0,
-                         NULL,
-                         &stringLength );
-      platformNames[i].resize( stringLength );
-      clGetPlatformInfo( platformIDs[i],
+                         nullptr,
+                         &string_length );
+      platform_names[i].resize( string_length );
+      clGetPlatformInfo( platform_ids[i],
                          CL_PLATFORM_NAME,
-                         stringLength,
-                         &platformNames[i][0],
-                         NULL );
-      clGetPlatformInfo( platformIDs[i],
+                         string_length,
+                         &platform_names[i][0],
+                         nullptr );
+
+      clGetPlatformInfo( platform_ids[i],
                          CL_PLATFORM_VERSION,
                          0,
-                         NULL,
-                         &stringLength );
-      platformVersions[i].resize( stringLength );
-      clGetPlatformInfo( platformIDs[i],
+                         nullptr,
+                         &string_length );
+      platform_versions[i].resize( string_length );
+      clGetPlatformInfo( platform_ids[i],
                          CL_PLATFORM_VERSION,
-                         stringLength,
-                         &platformVersions[i][0],
-                         NULL );
+                         string_length,
+                         &platform_versions[i][0],
+                         nullptr );
    }
+
    // (4) Select platform
-   std::vector< std::string > candidatePlatforms
-      = { "Intel(R) CPU", "Intel(R) OpenCL", "NVIDIA" };
-   uint32_t selectPlatform = 2;
-   cl_platform_id selectedPlatformID = NULL;
-   for( uint32_t platformIndex = 0; platformIndex < numPlatforms;
-        platformIndex++ ) {
-      char* curPlatformName = &platformNames[platformIndex][0];
-      for( uint32_t charIndex = 0;
-           charIndex < platformNames[platformIndex].size();
-           charIndex++ ) {
-         uint32_t stringIndex = 0;
-         while( curPlatformName[charIndex]
-                == candidatePlatforms[selectPlatform][stringIndex] ) {
-            charIndex++;
-            stringIndex++;
-            if( !( charIndex ^ candidatePlatforms[selectPlatform].size() ) ) {
-               selectedPlatformID = platformIDs[platformIndex];
-               break;
-            }
-         }
-         if( selectedPlatformID != NULL )
+   std::vector< std::string > candidate_platforms
+      = { "Intel(R) OpenCL", "NVIDIA" };
+   uint32_t select_platform = 1;
+   cl_platform_id selected_platform_id = nullptr;
+   for( uint32_t platform_index = 0; platform_index < num_platforms;
+        platform_index++ ) {
+      char* cur_platform_name = &platform_names[platform_index][0];
+      size_t limit = candidate_platforms[select_platform].size()
+                         < platform_names[platform_index].size()
+                      ? candidate_platforms[select_platform].size()
+                      : platform_names[platform_index].size();
+      uint32_t string_index = 0;
+      for( uint32_t char_index = 0; char_index < limit; char_index++ ) {
+         if( cur_platform_name[char_index]
+             == candidate_platforms[select_platform][string_index] ) {
+            string_index++;
+         } else {
             break;
+         }
+         if( char_index == limit - 1 ) {
+            selected_platform_id = platform_ids[platform_index];
+            break;
+         }
       }
-      if( selectedPlatformID != NULL )
+      if( selected_platform_id != nullptr ) {
          break;
+      }
    }
-   if( selectedPlatformID == NULL )
+   if( selected_platform_id == nullptr ) {
       std::cout << "Your system has no such OpenCL platform "
-                << candidatePlatforms[selectPlatform] << "." << std::endl;
+                << candidate_platforms[select_platform] << "." << std::endl;
+   }
+
    // (5)Check how many devices current platform has and store their
    // information.
-   cl_uint numDevices = 0;
-   cl_device_type deviceType = CL_DEVICE_TYPE_GPU;   // select one device type
-   err = clGetDeviceIDs( selectedPlatformID, deviceType, 0, NULL, &numDevices );
+   cl_uint num_devices = 0;
+   cl_device_type device_type = CL_DEVICE_TYPE_GPU;   // select one device type
+   err = clGetDeviceIDs( selected_platform_id,
+                         device_type,
+                         0,
+                         nullptr,
+                         &num_devices );
    if( err != CL_SUCCESS ) {
-      std::cout << "Current platform " << candidatePlatforms[selectPlatform]
+      std::cout << "Current platform " << candidate_platforms[select_platform]
                 << " has no supported device." << std::endl;
       return err;
    }
-   std::vector< cl_device_id > deviceIDs( numDevices );
-   err = clGetDeviceIDs( selectedPlatformID,
-                         deviceType,
-                         numDevices,
-                         &deviceIDs[0],
-                         NULL );
+   std::vector< cl_device_id > device_ids( num_devices );
+   err = clGetDeviceIDs( selected_platform_id,
+                         device_type,
+                         num_devices,
+                         &device_ids[0],
+                         nullptr );
+
    // (6)Obtain device info like obtaining platform info.
-   std::vector< std::vector< char > > deviceNames( numDevices );
-   for( uint32_t i = 0; i < numDevices; i++ ) {
-      err = clGetDeviceInfo( deviceIDs[i],
+   std::vector< std::string > device_names( num_devices );
+   for( uint32_t i = 0; i < num_devices; i++ ) {
+      err = clGetDeviceInfo( device_ids[i],
                              CL_DEVICE_NAME,
                              0,
-                             NULL,
-                             &stringLength );
-      deviceNames[i].resize( stringLength );
-      err = clGetDeviceInfo( deviceIDs[i],
+                             nullptr,
+                             &string_length );
+      device_names[i].resize( string_length );
+      err = clGetDeviceInfo( device_ids[i],
                              CL_DEVICE_NAME,
-                             stringLength,
-                             &deviceNames[i][0],
-                             NULL );
+                             string_length,
+                             &device_names[i][0],
+                             nullptr );
    }
+
    // (7)Select device like selecting platform.
-   std::vector< std::string > candidateDevices = { "Intel(R)", "NVIDIA" };
-   uint32_t selectDevice = 1;
-   cl_device_id selectedDeviceID = NULL;
-   for( uint32_t deviceIndex = 0; deviceIndex < numDevices; deviceIndex++ ) {
-      char* curDeviceName = &deviceNames[deviceIndex][0];
-      for( uint32_t charIndex = 0; charIndex < deviceNames[deviceIndex].size();
-           charIndex++ ) {
-         uint32_t stringIndex = 0;
-         while( curDeviceName[charIndex]
-                == candidateDevices[selectDevice][stringIndex] ) {
-            charIndex++;
-            stringIndex++;
-            if( !( charIndex ^ candidateDevices[selectDevice].size() ) ) {
-               selectedDeviceID = deviceIDs[deviceIndex];
-               break;
-            }
-         }
-         if( selectedDeviceID != NULL )
+   std::vector< std::string > candidate_devices = { "Intel(R)", "NVIDIA" };
+   uint32_t select_device = 1;
+   cl_device_id selected_device_id = nullptr;
+   for( uint32_t device_index = 0; device_index < num_devices;
+        device_index++ ) {
+      char* cur_device_name = &device_names[device_index][0];
+      size_t limit = candidate_devices[select_device].size()
+                         < device_names[device_index].size()
+                      ? candidate_devices[select_device].size()
+                      : device_names[device_index].size();
+      uint32_t string_index = 0;
+      for( uint32_t char_index = 0; char_index < limit; char_index++ ) {
+         if( cur_device_name[char_index]
+             == candidate_devices[select_device][string_index] ) {
+            string_index++;
+         } else {
             break;
+         }
+         if( char_index == limit - 1 ) {
+            selected_device_id = device_ids[device_index];
+            break;
+         }
       }
-      if( selectedDeviceID != NULL )
+      if( selected_device_id != nullptr ) {
          break;
+      }
    }
-   if( selectedDeviceID == NULL )
+   if( selected_device_id == nullptr ) {
       std::cout << "Your system has no such OpenCL device "
-                << candidateDevices[selectDevice] << "." << std::endl;
+                << candidate_devices[select_device] << "." << std::endl;
+   }
 
    // 2. create context
    // The context is the core of the opencl program and the only channel for the
@@ -161,15 +182,17 @@ int main() {
    // different contexts cannot be directly shared. The memory of different
    // devices under the same context is the same and can be accessed by each
    // other.
-   cl_context context = NULL;
-   cl_context_properties contextProperties[]
-      = { CL_CONTEXT_PLATFORM, (cl_context_properties)selectedPlatformID, 0 };
-   context = clCreateContextFromType( contextProperties,
+   cl_context context = nullptr;
+   cl_context_properties context_properties[]
+      = { CL_CONTEXT_PLATFORM,
+          reinterpret_cast< cl_context_properties >( selected_platform_id ),
+          0 };
+   context = clCreateContextFromType( context_properties,
                                       CL_DEVICE_TYPE_GPU,
-                                      NULL,
-                                      NULL,
+                                      nullptr,
+                                      nullptr,
                                       &err );
-   if( ( CL_SUCCESS != err ) || ( NULL == context ) ) {
+   if( ( CL_SUCCESS != err ) || ( nullptr == context ) ) {
       std::cout
          << "Couldn't create a context, clCreateContextFromType() returned "
          << err << std::endl;
@@ -186,31 +209,28 @@ int main() {
    // commands to the proper command queue. Any API that specifies hostdevice
    // interaction will always begin with clEnqueue and require a command queue
    // as a parameter
-   cl_command_queue commandQueue;
-   commandQueue = clCreateCommandQueueWithProperties( context,
-                                                      selectedDeviceID,
-                                                      0,
-                                                      NULL );
+   cl_command_queue command_queue;
+   command_queue = clCreateCommandQueueWithProperties( context,
+                                                       selected_device_id,
+                                                       nullptr,
+                                                       nullptr );
 
    // 4. create program
    // OpenCL C code (written to run on an OpenCL device) is called a program. A
    // program is a collection of functions called kernels, where kernels are
    // units of execution that can be scheduled to run on a device.
-   std::ifstream kernelFile( "vecAdd.cl", std::ios::in );
+   std::ifstream kernel_file( "vecAdd.cl", std::ios::in );
    std::ostringstream oss;
 
-   oss << kernelFile.rdbuf();
-   std::string srcStdStr = oss.str();
-   const char* srcStr = srcStdStr.c_str();
+   oss << kernel_file.rdbuf();
+   std::string src_std_str = oss.str();
+   const char* src_str = src_std_str.c_str();
    cl_program program;
-   program = clCreateProgramWithSource( context,
-                                        1,
-                                        (const char**)&srcStr,
-                                        NULL,
-                                        NULL );
+   program
+      = clCreateProgramWithSource( context, 1, &src_str, nullptr, nullptr );
 
    // 5. build program
-   clBuildProgram( program, 0, NULL, NULL, NULL, NULL );
+   clBuildProgram( program, 0, nullptr, nullptr, nullptr, nullptr );
 
    // 6. create kernel
    // The final stage to obtain a cl_kernel object that can be used to execute
@@ -219,8 +239,8 @@ int main() {
    // function from a dynamic library. The name of the kernel that the program
    // exports is used to request it from the compiled program object.
    cl_kernel kernel_add, kernel_mul;
-   kernel_add = clCreateKernel( program, "vecAdd", NULL );
-   kernel_mul = clCreateKernel( program, "vecMul", NULL );
+   kernel_add = clCreateKernel( program, "vecAdd", nullptr );
+   kernel_mul = clCreateKernel( program, "vecMul", nullptr );
 
    // 7. set input data && create memory object
    // In order for data to be transferred to a device, it must first be
@@ -241,51 +261,57 @@ int main() {
       input_z[i] = 3 * i;
    }
    // (2) Encapsulate them so that we can transfer date into and from devices.
-   cl_mem mem_object_x;
-   cl_mem mem_object_y;
-   cl_mem mem_object_output;
-   mem_object_x = clCreateBuffer( context,
-                                  CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                  sizeof( int ) * DATA_SIZE,
-                                  input_x,
-                                  NULL );
-   mem_object_y = clCreateBuffer( context,
-                                  CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                  sizeof( int ) * DATA_SIZE,
-                                  input_y,
-                                  NULL );
-   mem_object_output = clCreateBuffer( context,
-                                       CL_MEM_READ_WRITE,
+   auto mem_object_x = clCreateBuffer( context,
+                                       CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
                                        sizeof( int ) * DATA_SIZE,
-                                       NULL,
-                                       NULL );
-   clEnqueueWriteBuffer( commandQueue,
+                                       input_x,
+                                       nullptr );
+   auto mem_object_y = clCreateBuffer( context,
+                                       CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                                       sizeof( int ) * DATA_SIZE,
+                                       input_y,
+                                       nullptr );
+   auto mem_object_output = clCreateBuffer( context,
+                                            CL_MEM_READ_WRITE,
+                                            sizeof( int ) * DATA_SIZE,
+                                            nullptr,
+                                            nullptr );
+   clEnqueueWriteBuffer( command_queue,
                          mem_object_x,
                          false,
                          0,
                          sizeof( cl_mem ),
-                         NULL,
+                         nullptr,
                          0,
-                         NULL,
-                         NULL );
-   clEnqueueWriteBuffer( commandQueue,
+                         nullptr,
+                         nullptr );
+   clEnqueueWriteBuffer( command_queue,
                          mem_object_y,
                          false,
                          0,
                          sizeof( cl_mem ),
-                         NULL,
+                         nullptr,
                          0,
-                         NULL,
-                         NULL );
+                         nullptr,
+                         nullptr );
 
    // 8. set kernel argument
    // A few more steps are required before the kernel can actually be executed.
    // Unlike calling functions in regular C programs, we cannot simply call a
    // kernel by providing a list of arguments.
    // Executing a kernel requires dispatching it through an enqueue function.
-   clSetKernelArg( kernel_add, 1, sizeof( cl_mem ), &mem_object_y );
-   clSetKernelArg( kernel_add, 2, sizeof( cl_mem ), &mem_object_output );
-   clSetKernelArg( kernel_add, 0, sizeof( cl_mem ), &mem_object_x );
+   clSetKernelArg( kernel_add,
+                   1,
+                   sizeof( cl_mem ),
+                   static_cast< const void* >( &mem_object_y ) );
+   clSetKernelArg( kernel_add,
+                   2,
+                   sizeof( cl_mem ),
+                   static_cast< const void* >( &mem_object_output ) );
+   clSetKernelArg( kernel_add,
+                   0,
+                   sizeof( cl_mem ),
+                   static_cast< const void* >( &mem_object_x ) );
 
    // 9. send kernel to execute
    // After any required memory objects are transferred to the device and the
@@ -295,17 +321,17 @@ int main() {
    // before the kernel has even started execution. Either clWaitForEvents() or
    // clFinish() can be used to block execution on the host until the kernel
    // completes.
-   size_t globalWorkSize[1] = { DATA_SIZE };
-   size_t localWorkSize[1] = { 1 };
-   clEnqueueNDRangeKernel( commandQueue,
+   size_t global_work_size[1] = { DATA_SIZE };
+   size_t local_work_size[1] = { 1 };
+   clEnqueueNDRangeKernel( command_queue,
                            kernel_add,
                            1,
-                           NULL,
-                           globalWorkSize,
-                           localWorkSize,
+                           nullptr,
+                           global_work_size,
+                           local_work_size,
                            0,
-                           NULL,
-                           NULL );
+                           nullptr,
+                           nullptr );
 
    // 10. read data from output
    // Data contained in host memory is transferred to and from an OpenCL buffer
@@ -315,56 +341,69 @@ int main() {
    // transferred to the device. The buffer is linked to a context, not a
    // device, so it is the runtime that determines the precise time the data is
    // moved.
-   clEnqueueReadBuffer( commandQueue,
+   clEnqueueReadBuffer( command_queue,
                         mem_object_output,
                         CL_TRUE,
                         0,
                         DATA_SIZE * sizeof( int ),
                         output,
                         0,
-                        NULL,
-                        NULL );
+                        nullptr,
+                        nullptr );
    for( int i = 0; i < DATA_SIZE; i++ ) {
-      std::cout << output[i] << " ";
+      std::cout << std::setfill( '0' ) << std::setw( 6 ) << output[i] << " ";
    }
    std::cout << std::endl;
+   // Retain the buffer object to increment its reference count.
+   // Ensuring that the object remains valid as long as it's needed.
    clRetainMemObject( mem_object_x );
+
+   // 11. repeate steps 7-10.
    cl_mem mem_object_z;
    mem_object_z = clCreateBuffer( context,
                                   CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
                                   sizeof( int ) * DATA_SIZE,
                                   input_z,
-                                  NULL );
-   clSetKernelArg( kernel_mul, 1, sizeof( cl_mem ), &mem_object_y );
-   clSetKernelArg( kernel_mul, 2, sizeof( cl_mem ), &mem_object_output );
-   clSetKernelArg( kernel_mul, 0, sizeof( cl_mem ), &mem_object_z );
-   clEnqueueNDRangeKernel( commandQueue,
+                                  nullptr );
+   clSetKernelArg( kernel_mul,
+                   1,
+                   sizeof( cl_mem ),
+                   static_cast< const void* >( &mem_object_y ) );
+   clSetKernelArg( kernel_mul,
+                   2,
+                   sizeof( cl_mem ),
+                   static_cast< const void* >( &mem_object_output ) );
+   clSetKernelArg( kernel_mul,
+                   0,
+                   sizeof( cl_mem ),
+                   static_cast< const void* >( &mem_object_z ) );
+   clEnqueueNDRangeKernel( command_queue,
                            kernel_mul,
                            1,
-                           NULL,
-                           globalWorkSize,
-                           localWorkSize,
+                           nullptr,
+                           global_work_size,
+                           local_work_size,
                            0,
-                           NULL,
-                           NULL );
-   clEnqueueReadBuffer( commandQueue,
+                           nullptr,
+                           nullptr );
+   clEnqueueReadBuffer( command_queue,
                         mem_object_output,
                         CL_TRUE,
                         0,
                         DATA_SIZE * sizeof( int ),
                         output,
                         0,
-                        NULL,
-                        NULL );
+                        nullptr,
+                        nullptr );
    for( int i = 0; i < DATA_SIZE; i++ ) {
-      std::cout << output[i] << " ";
+      std::cout << std::setfill( '0' ) << std::setw( 6 ) << output[i] << " ";
    }
    std::cout << std::endl;
 
-   // 11. clean up
+   // 12. clean up
    clRetainMemObject( mem_object_y );
    clRetainMemObject( mem_object_output );
-   clReleaseCommandQueue( commandQueue );
+   clReleaseCommandQueue( command_queue );
    clReleaseKernel( kernel_add );
    clReleaseProgram( program );
    clReleaseContext( context );
