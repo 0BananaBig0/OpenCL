@@ -5,19 +5,21 @@
   > Created Time: Mon 08 Aug 2022 09:28:13 PM CST
  ************************************************************************/
 
-__kernel void vecAdd(__global const int *input_x,
-                         __global const int *input_y,
-                         __global int *output) {
-  int gid = get_global_id(0);
-  // printf("%d\n", gid);
-  // into
-  output[gid] = input_x[gid] + input_y[gid];
+__kernel void vecAdd( __global const int* input_x,
+                      __global const int* input_y,
+                      __global int* output ) {
+   int gid = get_global_id( 0 );
+   // printf("%d\n", gid);
+   // into
+   output[gid] = input_x[gid] + input_y[gid];
 }
-__kernel void vecMul(__global const int *input_z,
-                         __global const int *input_y,
-                         __global int *output) {
-  int gid = get_global_id(0);
-  // printf("%d\n", gid);
-  // into
-  output[gid] = input_z[gid] * input_y[gid];
+
+__kernel void vecMul( __global const int* input_z,
+                      __global const int* input_y,
+                      __global int* output ) {
+   int gid = get_global_id( 0 );
+   // printf("%d\n", gid);
+   // into
+   output[gid] = input_z[gid] * input_y[gid];
 }
+

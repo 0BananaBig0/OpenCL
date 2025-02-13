@@ -1,3 +1,8 @@
 # exclude all compiled programs based on the extension .out
 *.out
 *.exe
+.clangd
+.clang-format
+.clang-tidy
+.cache
+compile_commands.json
