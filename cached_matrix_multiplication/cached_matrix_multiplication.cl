@@ -45,6 +45,7 @@ __kernel void multiplyMatricesWithCache( const __global int* a,
     */
 
    // Determine repeated times.
+   // Utilize sliding window technique to calcuate the target result.
    const int n_sub = (int)k / sub_size;
    for( int i = 0; i < n_sub; i++ ) {
 
