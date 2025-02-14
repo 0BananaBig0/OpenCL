@@ -71,31 +71,15 @@ int main() {
    }
 
    // (4) Select platform
-   std::vector< std::string > candidate_platforms
-      = { "Intel(R) OpenCL", "NVIDIA" };
+   std::vector< std::string > candidate_platforms = { "Intel(R)", "NVIDIA" };
    uint32_t select_platform = 1;
    cl_platform_id selected_platform_id = nullptr;
    for( uint32_t platform_index = 0; platform_index < num_platforms;
         platform_index++ ) {
-      char* cur_platform_name = &platform_names[platform_index][0];
-      size_t limit = candidate_platforms[select_platform].size()
-                         < platform_names[platform_index].size()
-                      ? candidate_platforms[select_platform].size()
-                      : platform_names[platform_index].size();
-      uint32_t string_index = 0;
-      for( uint32_t char_index = 0; char_index < limit; char_index++ ) {
-         if( cur_platform_name[char_index]
-             == candidate_platforms[select_platform][string_index] ) {
-            string_index++;
-         } else {
-            break;
-         }
-         if( char_index == limit - 1 ) {
-            selected_platform_id = platform_ids[platform_index];
-            break;
-         }
-      }
-      if( selected_platform_id != nullptr ) {
+      if( platform_names[platform_index].find(
+             candidate_platforms[select_platform] )
+          != std::string::npos ) {
+         selected_platform_id = platform_ids[platform_index];
          break;
       }
    }
@@ -147,25 +131,9 @@ int main() {
    cl_device_id selected_device_id = nullptr;
    for( uint32_t device_index = 0; device_index < num_devices;
         device_index++ ) {
-      char* cur_device_name = &device_names[device_index][0];
-      size_t limit = candidate_devices[select_device].size()
-                         < device_names[device_index].size()
-                      ? candidate_devices[select_device].size()
-                      : device_names[device_index].size();
-      uint32_t string_index = 0;
-      for( uint32_t char_index = 0; char_index < limit; char_index++ ) {
-         if( cur_device_name[char_index]
-             == candidate_devices[select_device][string_index] ) {
-            string_index++;
-         } else {
-            break;
-         }
-         if( char_index == limit - 1 ) {
-            selected_device_id = device_ids[device_index];
-            break;
-         }
-      }
-      if( selected_device_id != nullptr ) {
+      if( device_names[device_index].find( candidate_devices[select_device] )
+          != std::string::npos ) {
+         selected_device_id = device_ids[device_index];
          break;
       }
    }
