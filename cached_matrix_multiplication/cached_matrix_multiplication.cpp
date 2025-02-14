@@ -1,12 +1,7 @@
-#include <CL/cl.hpp>
+#define CL_HPP_TARGET_OPENCL_VERSION 300
+#include <CL/opencl.hpp>
 #include <fstream>
 #include <iostream>
-#include <algorithm>
-
-#include <CL/cl.hpp>
-#include <fstream>
-#include <iostream>
-#include <algorithm>
 
 // =================================================================
 // ---------------------- Secondary Functions ----------------------
@@ -16,27 +11,27 @@
 cl::Device getDefaultDevice();
 // Inicialize device and compile kernel code.
 void initializeDevice();
-void seqMultiplyMatrices( int* a,
-                          int* b,
+void seqMultiplyMatrices( const int* a,
+                          const int* b,
                           int* c,
-                          const int M,
-                          const int N,
-                          // Sequentially performs the operation c[M,N] = a[M,K]
-                          // * b[K,N].
-                          const int K );
+                          const size_t m,
+                          const size_t n,
+                          // Sequentially performs the operation c[m,n] = a[m,k]
+                          // * b[k,n].
+                          const size_t k );
 void parMultiplyMatrices( int* a,
                           int* b,
                           int* c,
-                          const int M,
-                          const int N,
-                          // Parallelly performs the operation c[M,N] = a[M,K] *
-                          // b[K,N].
-                          const int K );
-bool checkEquality( int* c1,
-                    int* c2,
-                    const int M,
+                          const size_t m,
+                          const size_t n,
+                          // Parallelly performs the operation c[m,n] = a[m,k]
+                          // * b[k,n].
+                          const size_t k );
+bool checkEquality( const int* c1,
+                    const int* c2,
+                    const size_t m,
                     // Check if the matrices c1 and c2 are equal.
-                    const int N );
+                    const size_t n );
 
 // =================================================================
 // ------------------------ Global Variables ------------------------
@@ -58,49 +53,54 @@ int main() {
     * */
 
    clock_t start, end;
-   const int EXECUTIONS = 40;
+   constexpr int executions = 40;
 
    /**
     * Prepare input constants related to the dimensions of the matrices.
     * */
 
-   const int M = 1 << 4;
-   const int N = 1 << 4;
-   const int K = 1 << 12;
+   constexpr size_t m = 1 << 4;
+   constexpr size_t k = 1 << 12;
+   constexpr size_t n = 1 << 4;
 
    /**
-    * Prepare input matrices A and B.
+    * Prepare input matrices a and b.
     * */
 
-   const size_t ROWS_A = M;
-   const size_t COLS_A = K;
-   std::vector< int > a( ROWS_A * COLS_A, 3 );
+   constexpr size_t rows_a = m;
+   constexpr size_t cols_a = k;
+   std::vector< int > a( rows_a * cols_a );
+   for( size_t i = 0; i < rows_a * cols_a; i++ ) {
+      a[i] = i;
+   }
 
-   const size_t ROWS_B = K;
-   const size_t COLS_B = N;
-   std::vector< int > b( ROWS_B * COLS_B, 5 );
+   constexpr size_t rows_b = k;
+   constexpr size_t cols_b = n;
+   std::vector< int > b( rows_b * cols_b );
+   for( size_t i = 0; i < rows_b * cols_b; i++ ) {
+      b[i] = i;
+   }
 
    /**
     * Prepare sequential and parallel output matrices.
     * */
 
-   const size_t ROWS_C = M;
-   const size_t COLS_C = N;
-   std::vector< int > cs( ROWS_C * COLS_C );
-   std::vector< int > cp( ROWS_C * COLS_C );
+   constexpr size_t rows_c = m;
+   constexpr size_t cols_c = n;
+   std::vector< int > cs( rows_c * cols_c );
+   std::vector< int > cp( rows_c * cols_c );
 
    /**
     * Sequentially multiply matrices.
     * */
 
    start = clock();
-   for( int i = 0; i < EXECUTIONS; i++ ) {
-      seqMultiplyMatrices( a.data(), b.data(), cs.data(), M, N, K );
+   for( int i = 0; i < executions; i++ ) {
+      seqMultiplyMatrices( a.data(), b.data(), cs.data(), m, n, k );
    }
    end = clock();
-   double seqTime
-      = ( (double)10e3 * ( end - start ) ) / CLOCKS_PER_SEC / EXECUTIONS;
-
+   double seq_time = ( 10e3 * static_cast< double >( end - start ) )
+                   / CLOCKS_PER_SEC / executions;
    /**
     * Initialize OpenCL device.
     * */
@@ -112,18 +112,18 @@ int main() {
     * */
 
    start = clock();
-   for( int i = 0; i < EXECUTIONS; i++ ) {
-      parMultiplyMatrices( a.data(), b.data(), cp.data(), M, N, K );
+   for( int i = 0; i < executions; i++ ) {
+      parMultiplyMatrices( a.data(), b.data(), cp.data(), m, n, k );
    }
    end = clock();
-   double parTime
-      = ( (double)10e3 * ( end - start ) ) / CLOCKS_PER_SEC / EXECUTIONS;
+   double par_time = ( 10e3 * static_cast< double >( end - start ) )
+                   / CLOCKS_PER_SEC / executions;
 
    /**
     * Check if outputs are equal.
     * */
 
-   bool equal = checkEquality( cs.data(), cp.data(), ROWS_C, COLS_C );
+   bool equal = checkEquality( cs.data(), cp.data(), rows_c, cols_c );
 
    /**
     * Print results.
@@ -132,10 +132,10 @@ int main() {
    std::cout << "Status: " << ( equal ? "SUCCESS!" : "FAILED!" ) << std::endl;
    std::cout << "Results: \n\tA[0] = " << a[0] << "\n\tB[0] = " << b[0]
              << "\n\tC[0] = " << cp[0] << std::endl;
-   std::cout << "Mean execution time: \n\tSequential: " << seqTime
-             << " ms;\n\tParallel: " << parTime << " ms." << std::endl;
+   std::cout << "Mean execution time: \n\tSequential: " << seq_time
+             << " ms;\n\tParallel: " << par_time << " ms." << std::endl;
    std::cout << "Performance gain: "
-             << ( 100 * ( seqTime - parTime ) / parTime ) << "\%\n";
+             << ( 100 * ( seq_time - par_time ) / par_time ) << "%\n";
    return 0;
 }
 
@@ -207,9 +207,7 @@ void initializeDevice() {
     * Compile kernel program which will run on the device.
     * */
 
-   cl::Program::Sources sources(
-      1,
-      std::make_pair( src.c_str(), src.length() + 1 ) );
+   cl::Program::Sources sources{ src };
    context = cl::Context( device );
    program = cl::Program( context, sources );
 
@@ -225,66 +223,66 @@ void initializeDevice() {
 }
 
 /**
- * Sequentially performs the operation c[M,N] = a[M,K] * b[K,N].
+ * Sequentially performs the operation c[m,n] = a[m,k] * b[k,n].
  * */
 
-void seqMultiplyMatrices( int* a,
-                          int* b,
+void seqMultiplyMatrices( const int* a,
+                          const int* b,
                           int* c,
-                          const int M,
-                          const int N,
-                          const int K ) {
-   for( int i = 0; i < M; i++ ) {
-      for( int j = 0; j < N; j++ ) {
+                          const size_t m,
+                          const size_t n,
+                          const size_t k ) {
+   for( size_t i = 0; i < m; i++ ) {
+      for( size_t j = 0; j < n; j++ ) {
          int sum = 0;
-         for( int k = 0; k < K; k++ ) {
-            sum += a[i * K + k] * b[j + k * N];
+         for( size_t z = 0; z < k; z++ ) {
+            sum += a[i * k + z] * b[j + z * n];
          }
-         c[i * N + j] = sum;
+         c[i * n + j] = sum;
       }
    }
 }
 
 /**
- * Parallelly performs the operation c[M,N] = a[M,K] * b[K,N].
+ * Parallelly performs the operation c[m,n] = a[m,k] * b[k,n].
  * */
 
 void parMultiplyMatrices( int* a,
                           int* b,
                           int* c,
-                          const int M,
-                          const int N,
-                          const int K ) {
+                          const size_t m,
+                          const size_t n,
+                          const size_t k ) {
 
    /**
     * Create buffers and allocate memory on the device.
     * */
 
-   cl::Buffer aBuf(
+   cl::Buffer a_buf(
       context,
       CL_MEM_READ_ONLY | CL_MEM_HOST_NO_ACCESS | CL_MEM_COPY_HOST_PTR,
-      M * K * sizeof( int ),
+      m * k * sizeof( int ),
       a );
-   cl::Buffer bBuf(
+   cl::Buffer b_buf(
       context,
       CL_MEM_READ_ONLY | CL_MEM_HOST_NO_ACCESS | CL_MEM_COPY_HOST_PTR,
-      K * N * sizeof( int ),
+      k * n * sizeof( int ),
       b );
-   cl::Buffer cBuf( context,
-                    CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY,
-                    M * N * sizeof( int ) );
+   cl::Buffer c_buf( context,
+                     CL_MEM_READ_WRITE | CL_MEM_HOST_READ_ONLY,
+                     m * n * sizeof( int ) );
 
    /**
     * Set kernel arguments.
     * */
 
    cl::Kernel kernel( program, "multiplyMatricesWithCache" );
-   kernel.setArg( 0, aBuf );
-   kernel.setArg( 1, bBuf );
-   kernel.setArg( 2, cBuf );
-   kernel.setArg( 3, sizeof( unsigned int ), &M );
-   kernel.setArg( 4, sizeof( unsigned int ), &N );
-   kernel.setArg( 5, sizeof( unsigned int ), &K );
+   kernel.setArg( 0, a_buf );
+   kernel.setArg( 1, b_buf );
+   kernel.setArg( 2, c_buf );
+   kernel.setArg( 3, sizeof( unsigned int ), &m );
+   kernel.setArg( 4, sizeof( unsigned int ), &n );
+   kernel.setArg( 5, sizeof( unsigned int ), &k );
 
    /**
     * Execute the kernel function and collect its result.
@@ -293,17 +291,20 @@ void parMultiplyMatrices( int* a,
    cl::CommandQueue queue( context, device );
    queue.enqueueNDRangeKernel( kernel,
                                cl::NullRange,
-                               cl::NDRange( N, M ),
+                               cl::NDRange( n, m ),
                                cl::NDRange( WG_SIZE[0], WG_SIZE[1] ) );
-   queue.enqueueReadBuffer( cBuf, CL_TRUE, 0, M * N * sizeof( int ), c );
+   queue.enqueueReadBuffer( c_buf, CL_TRUE, 0, m * n * sizeof( int ), c );
 }
 
 /**
  * Check if the matrices C1 and C2 are equal.
  * */
 
-bool checkEquality( int* c1, int* c2, const int M, const int N ) {
-   for( int i = 0; i < M * N; i++ ) {
+bool checkEquality( const int* c1,
+                    const int* c2,
+                    const size_t m,
+                    const size_t n ) {
+   for( size_t i = 0; i < m * n; i++ ) {
       if( c1[i] != c2[i] ) {
          return false;
       }

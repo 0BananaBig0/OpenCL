@@ -13,8 +13,7 @@ SHARED_LIBS =  -lOpenCL
 LINK_OPTION = ${SHARED_LIB_PATH} ${SHARED_LIBS}
 INCLUDES =
 
-# DEBUG = -g
-DEBUG =
+DEBUG = -g
 
 CC_FLAGS = ${DEBUG} -fPIC -Wall -Wextra -std=c++17 \
 					-Wno-error=deprecated-declarations
