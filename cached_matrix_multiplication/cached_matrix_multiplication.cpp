@@ -69,14 +69,14 @@ int main() {
    constexpr size_t cols_a = k;
    std::vector< int > a( rows_a * cols_a );
    for( size_t i = 0; i < rows_a * cols_a; i++ ) {
-      a[i] = i;
+      a[i] = static_cast< int >( i );
    }
 
    constexpr size_t rows_b = k;
    constexpr size_t cols_b = n;
    std::vector< int > b( rows_b * cols_b );
    for( size_t i = 0; i < rows_b * cols_b; i++ ) {
-      b[i] = i;
+      b[i] = static_cast< int >( 2 * i );
    }
 
    /**
