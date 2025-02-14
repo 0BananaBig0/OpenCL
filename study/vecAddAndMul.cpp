@@ -187,18 +187,22 @@ int main() {
    // OpenCL C code (written to run on an OpenCL device) is called a program. A
    // program is a collection of functions called kernels, where kernels are
    // units of execution that can be scheduled to run on a device.
-   std::ifstream kernel_file( "vecAdd.cl", std::ios::in );
+   std::ifstream kernel_file_add( "vecAdd.cl", std::ios::in );
    std::ostringstream oss;
 
-   oss << kernel_file.rdbuf();
+   oss << kernel_file_add.rdbuf();
    std::string src_std_str = oss.str();
    const char* src_str = src_std_str.c_str();
-   cl_program program;
-   program
+   auto program_add
       = clCreateProgramWithSource( context, 1, &src_str, nullptr, nullptr );
 
    // 5. build program
-   clBuildProgram( program, 0, nullptr, nullptr, nullptr, nullptr );
+   clBuildProgram( program_add,
+                   1,
+                   &selected_device_id,
+                   "-I.",
+                   nullptr,
+                   nullptr );
 
    // 6. create kernel
    // The final stage to obtain a cl_kernel object that can be used to execute
@@ -206,9 +210,7 @@ int main() {
    // Extracting a kernel from a program is similar to obtaining an exported
    // function from a dynamic library. The name of the kernel that the program
    // exports is used to request it from the compiled program object.
-   cl_kernel kernel_add, kernel_mul;
-   kernel_add = clCreateKernel( program, "vecAdd", nullptr );
-   kernel_mul = clCreateKernel( program, "vecMul", nullptr );
+   auto kernel_add = clCreateKernel( program_add, "vecAdd", nullptr );
 
    // 7. set input data && create memory object
    // In order for data to be transferred to a device, it must first be
@@ -330,12 +332,23 @@ int main() {
    // Ensuring that the object remains valid as long as it's needed.
    clRetainMemObject( mem_object_x );
 
-   // 11. repeate steps 7-10.
+   // 11. repeate steps 4-10.
+   std::ifstream kernel_file_mul( "vecMul.cl", std::ios::in );
+   oss.str( "" );
+   oss << kernel_file_mul.rdbuf();
+   src_std_str = oss.str();
+   src_str = src_std_str.c_str();
+   auto program_mul
+      = clCreateProgramWithSource( context, 1, &src_str, nullptr, nullptr );
+   clBuildProgram( program_mul, 0, nullptr, "-I.", nullptr, nullptr );
+   auto kernel_mul = clCreateKernel( program_mul, "vecMul", nullptr );
+
    auto mem_object_z = clCreateBuffer( context,
                                        CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
                                        sizeof( int ) * DATA_SIZE,
                                        input_z,
                                        nullptr );
+
    clSetKernelArg( kernel_mul,
                    1,
                    sizeof( cl_mem ),
@@ -348,6 +361,7 @@ int main() {
                    0,
                    sizeof( cl_mem ),
                    static_cast< const void* >( &mem_object_z ) );
+
    clEnqueueNDRangeKernel( command_queue,
                            kernel_mul,
                            work_dim,
@@ -357,6 +371,7 @@ int main() {
                            0,
                            nullptr,
                            nullptr );
+
    clEnqueueReadBuffer( command_queue,
                         mem_object_output,
                         CL_TRUE,
@@ -376,7 +391,7 @@ int main() {
    clRetainMemObject( mem_object_output );
    clReleaseCommandQueue( command_queue );
    clReleaseKernel( kernel_add );
-   clReleaseProgram( program );
+   clReleaseProgram( program_add );
    clReleaseContext( context );
 
    return 0;
