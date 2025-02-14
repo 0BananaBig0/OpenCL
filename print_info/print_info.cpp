@@ -1,4 +1,5 @@
-#include <CL/cl.hpp>
+#define CL_HPP_TARGET_OPENCL_VERSION 300
+#include <CL/opencl.hpp>
 #include <iostream>
 
 int main() {
@@ -38,22 +39,22 @@ int main() {
    auto name = device.getInfo< CL_DEVICE_NAME >();
    auto vendor = device.getInfo< CL_DEVICE_VENDOR >();
    auto version = device.getInfo< CL_DEVICE_VERSION >();
-   auto workItems = device.getInfo< CL_DEVICE_MAX_WORK_ITEM_SIZES >();
-   auto workGroups = device.getInfo< CL_DEVICE_MAX_WORK_GROUP_SIZE >();
-   auto computeUnits = device.getInfo< CL_DEVICE_MAX_COMPUTE_UNITS >();
-   auto globalMemory = device.getInfo< CL_DEVICE_GLOBAL_MEM_SIZE >();
-   auto localMemory = device.getInfo< CL_DEVICE_LOCAL_MEM_SIZE >();
+   auto work_items = device.getInfo< CL_DEVICE_MAX_WORK_ITEM_SIZES >();
+   auto work_groups = device.getInfo< CL_DEVICE_MAX_WORK_GROUP_SIZE >();
+   auto compute_units = device.getInfo< CL_DEVICE_MAX_COMPUTE_UNITS >();
+   auto global_memory = device.getInfo< CL_DEVICE_GLOBAL_MEM_SIZE >();
+   auto local_memory = device.getInfo< CL_DEVICE_LOCAL_MEM_SIZE >();
 
    std::cout << "OpenCL Device Info:"
              << "\nName: " << name << "\nVendor: " << vendor
              << "\nVersion: " << version << "\nMax size of work-items: ("
-             << workItems[0] << "," << workItems[1] << "," << workItems[2]
+             << work_items[0] << "," << work_items[1] << "," << work_items[2]
              << ")"
-             << "\nMax size of work-groups: " << workGroups
-             << "\nNumber of compute units: " << computeUnits
-             << "\nGlobal memory size (bytes): " << globalMemory
+             << "\nMax size of work-groups: " << work_groups
+             << "\nNumber of compute units: " << compute_units
+             << "\nGlobal memory size (bytes): " << global_memory
              << "\nLocal memory size per compute unit (bytes): "
-             << localMemory / computeUnits << std::endl;
+             << local_memory / compute_units << std::endl;
 
    return 0;
 }
