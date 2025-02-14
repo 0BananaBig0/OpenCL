@@ -8,10 +8,10 @@ CC = g++
 SHARED_LIB_PATH =
 
 # comment -ltclreadline, use rlwrap instead
-SHARED_LIBS =  -lOpenCL
+SHARED_LIBS =  -lOpenCL -lpthread -lX11
 
 LINK_OPTION = ${SHARED_LIB_PATH} ${SHARED_LIBS}
-INCLUDES =
+INCLUDES = -I.
 
 # DEBUG = -g
 DEBUG =

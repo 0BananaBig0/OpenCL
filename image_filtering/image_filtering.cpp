@@ -1,4 +1,5 @@
-#include <CL/cl.hpp>
+#define CL_HPP_TARGET_OPENCL_VERSION 300
+#include <CL/opencl.hpp>
 #include <fstream>
 #include <iostream>
 #include <string.h>
@@ -11,42 +12,44 @@ using namespace cimg_library;
 // ---------------------- Secondary Functions ----------------------
 // =================================================================
 
-void seqRgb2Gray( unsigned int imgWidth,
-                  unsigned int imgHeight,
-                  unsigned char* rChannel,
-                  unsigned char* gChannel,
-                  unsigned char* bChannel,
-                  // Sequentially convert an RGB image to grayscale.
-                  unsigned char* grayImg );
+// Sequentially convert an RGB image to grayscale.
+void seqRgb2Gray( unsigned int img_width,
+                  unsigned int img_height,
+                  const unsigned char* r_channel,
+                  const unsigned char* g_channel,
+                  const unsigned char* b_channel,
+                  unsigned char* gray_img );
 
-void seqConvolve( unsigned int imgWidth,
-                  unsigned int imgHeight,
-                  unsigned int maskSize,
-                  unsigned char* inputImg,
-                  float* mask,
-                  // Sequentially convolve an image with a filter.
-                  unsigned char* outputImg );
+// Sequentially convolve an image with a filter.
+void seqConvolve( unsigned int img_width,
+                  unsigned int img_height,
+                  unsigned int mask_size,
+                  const unsigned char* input_img,
+                  const float* mask,
+                  unsigned char* output_img );
 
-void seqFilter( unsigned int imgWidth,
-                unsigned int imgHeight,
-                unsigned int lpMaskSize,
-                unsigned int hpMaskSize,
-                unsigned char* inputRchannel,
-                unsigned char* inputGchannel,
-                unsigned char* inputBchannel,
-                float* lpMask,
-                float* hpMask,
-                // Sequentially filter an image.
-                unsigned char* outputImg );
+// Sequentially filter an image.
+void seqFilter( unsigned int img_width,
+                unsigned int img_height,
+                unsigned int lp_mask_size,
+                unsigned int hp_mask_size,
+                unsigned char* input_rchannel,
+                unsigned char* input_gchannel,
+                unsigned char* input_bchannel,
+                float* lp_mask,
+                float* hp_mask,
+                unsigned char* output_img );
 
-bool checkEquality( unsigned char* img1,
-                    unsigned char* img2,
-                    const int W,
-                    // Check if the images img1 and img2 are equal.
-                    const int H );
+// Check if the images img1 and img2 are equal.
+bool checkEquality( const unsigned char* img1,
+                    const unsigned char* img2,
+                    const unsigned int m,
+                    const unsigned int n );
 
 // Display unsigned char matrix as an image.
-void displayImg( unsigned char* img, int imgWidth, int imgHeight );
+void displayImg( const unsigned char* img,
+                 unsigned int img_width,
+                 unsigned int img_height );
 
 // =================================================================
 // ------------------------ OpenCL Functions -----------------------
@@ -58,17 +61,17 @@ cl::Device getDefaultDevice();
 // Inicialize device and compile kernel code.
 void initializeDevice();
 
-void parFilter( unsigned int imgWidth,
-                unsigned int imgHeight,
-                unsigned int lpMaskSize,
-                unsigned int hpMaskSize,
-                unsigned char* inputRchannel,
-                unsigned char* inputGchannel,
-                unsigned char* inputBchannel,
-                float* lpMask,
-                float* hpMask,
-                // Parallelly filter an image.
-                unsigned char* outputImg );
+// Parallelly filter an image.
+void parFilter( unsigned int img_width,
+                unsigned int img_height,
+                unsigned int lp_mask_size,
+                unsigned int hp_mask_size,
+                unsigned char* input_rchannel,
+                unsigned char* input_gchannel,
+                unsigned char* input_bchannel,
+                float* lp_mask,
+                float* hp_mask,
+                unsigned char* output_img );
 
 // =================================================================
 // ------------------------ Global Variables ------------------------
@@ -95,66 +98,68 @@ int main() {
     * */
 
    CImg< unsigned char > cimg( "input_img.jpg" );
-   unsigned char* inputImg = cimg.data();
-   unsigned int imgWidth = cimg.width(), imgHeight = cimg.height();
-   unsigned char* inputRchannel = &inputImg[0];
-   unsigned char* inputGchannel = &inputImg[imgWidth * imgHeight];
-   unsigned char* inputBchannel = &inputImg[2 * imgWidth * imgHeight];
+   unsigned char* input_img = cimg.data();
+   unsigned int img_width = static_cast< unsigned int >( cimg.width() );
+   unsigned int img_height = static_cast< unsigned int >( cimg.height() );
+   unsigned char* input_rchannel = &input_img[0];
+   unsigned char* input_gchannel = &input_img[img_width * img_height];
+   unsigned char* input_bchannel = &input_img[2 * img_width * img_height];
 
    /**
     * Create a low-pass filter mask.
     * */
 
-   const int lpMaskSize = 5;
-   float lpMask[lpMaskSize][lpMaskSize] = {
-      { .04, .04, .04, .04, .04 },
-      { .04, .04, .04, .04, .04 },
-      { .04, .04, .04, .04, .04 },
-      { .04, .04, .04, .04, .04 },
-      { .04, .04, .04, .04, .04 },
+   const int lp_mask_size = 5;
+   float lp_mask[lp_mask_size][lp_mask_size] = {
+      { .04f, .04f, .04f, .04f, .04f },
+      { .04f, .04f, .04f, .04f, .04f },
+      { .04f, .04f, .04f, .04f, .04f },
+      { .04f, .04f, .04f, .04f, .04f },
+      { .04f, .04f, .04f, .04f, .04f },
    };
-   float* lpMaskData = &lpMask[0][0];
+   float* lp_mask_data = &lp_mask[0][0];
 
    /**
     * Create a high-pass filter mask.
     * */
 
-   const int hpMaskSize = 5;
-   float hpMask[hpMaskSize][hpMaskSize] = {
+   const int hp_mask_size = 5;
+   float hp_mask[hp_mask_size][hp_mask_size] = {
       { -1, -1, -1, -1, -1 },
       { -1, -1, -1, -1, -1 },
       { -1, -1, 24, -1, -1 },
       { -1, -1, -1, -1, -1 },
       { -1, -1, -1, -1, -1 },
    };
-   float* hpMaskData = &hpMask[0][0];
+   float* hp_mask_data = &hp_mask[0][0];
 
    /**
     * Allocate memory for the output images.
     * */
 
-   unsigned char* seqFilteredImg = (unsigned char*)malloc(
-      imgWidth * imgHeight * sizeof( unsigned char ) );
-   unsigned char* parFilteredImg = (unsigned char*)malloc(
-      imgWidth * imgHeight * sizeof( unsigned char ) );
+   unsigned char* seq_filtered_img = static_cast< unsigned char* >(
+      malloc( img_width * img_height * sizeof( unsigned char ) ) );
+   unsigned char* par_filtered_img = static_cast< unsigned char* >(
+      malloc( img_width * img_height * sizeof( unsigned char ) ) );
 
    /**
     * Sequentially convolve filter over image.
     * */
 
    start = clock();
-   seqFilter( imgWidth,
-              imgHeight,
-              lpMaskSize,
-              hpMaskSize,
-              inputRchannel,
-              inputGchannel,
-              inputBchannel,
-              lpMaskData,
-              hpMaskData,
-              seqFilteredImg );
+   seqFilter( img_width,
+              img_height,
+              lp_mask_size,
+              hp_mask_size,
+              input_rchannel,
+              input_gchannel,
+              input_bchannel,
+              lp_mask_data,
+              hp_mask_data,
+              seq_filtered_img );
    end = clock();
-   double seqTime = ( (double)10e3 * ( end - start ) ) / CLOCKS_PER_SEC;
+   double seq_time
+      = ( 10e3 * static_cast< double >( end - start ) ) / CLOCKS_PER_SEC;
 
    /**
     * Initialize OpenCL device.
@@ -167,41 +172,44 @@ int main() {
     * */
 
    start = clock();
-   parFilter( imgWidth,
-              imgHeight,
-              lpMaskSize,
-              hpMaskSize,
-              inputRchannel,
-              inputGchannel,
-              inputBchannel,
-              lpMaskData,
-              hpMaskData,
-              parFilteredImg );
+   parFilter( img_width,
+              img_height,
+              lp_mask_size,
+              hp_mask_size,
+              input_rchannel,
+              input_gchannel,
+              input_bchannel,
+              lp_mask_data,
+              hp_mask_data,
+              par_filtered_img );
    end = clock();
-   double parTime = ( (double)10e3 * ( end - start ) ) / CLOCKS_PER_SEC;
+   double par_time
+      = ( 10e3 * static_cast< double >( end - start ) ) / CLOCKS_PER_SEC;
 
    /**
     * Check if outputs are equal.
     * */
 
-   bool equal
-      = checkEquality( seqFilteredImg, parFilteredImg, imgWidth, imgHeight );
+   bool equal = checkEquality( seq_filtered_img,
+                               par_filtered_img,
+                               img_width,
+                               img_height );
 
    /**
     * Print results.
     */
 
    std::cout << "Status: " << ( equal ? "SUCCESS!" : "FAILED!" ) << std::endl;
-   std::cout << "Mean execution time: \n\tSequential: " << seqTime
-             << " ms;\n\tParallel: " << parTime << " ms." << std::endl;
+   std::cout << "Mean execution time: \n\tSequential: " << seq_time
+             << " ms;\n\tParallel: " << par_time << " ms." << std::endl;
    std::cout << "Performance gain: "
-             << ( 100 * ( seqTime - parTime ) / parTime ) << "\%\n";
+             << ( 100 * ( seq_time - par_time ) / par_time ) << "\n";
 
    /**
     * Display filtered image.
     * */
 
-   displayImg( parFilteredImg, imgWidth, imgHeight );
+   displayImg( par_filtered_img, img_width, img_height );
    return 0;
 }
 
@@ -273,9 +281,7 @@ void initializeDevice() {
     * Compile kernel program which will run on the device.
     * */
 
-   cl::Program::Sources sources(
-      1,
-      std::make_pair( src.c_str(), src.length() + 1 ) );
+   cl::Program::Sources sources{ src };
    context = cl::Context( device );
    program = cl::Program( context, sources );
 
@@ -294,106 +300,107 @@ void initializeDevice() {
  * Parallelly filter an image.
  */
 
-void parFilter( unsigned int imgWidth,
-                unsigned int imgHeight,
-                unsigned int lpMaskSize,
-                unsigned int hpMaskSize,
-                unsigned char* inputRchannel,
-                unsigned char* inputGchannel,
-                unsigned char* inputBchannel,
-                float* lpMask,
-                float* hpMask,
-                unsigned char* outputImg ) {
+void parFilter( unsigned int img_width,
+                unsigned int img_height,
+                unsigned int lp_mask_size,
+                unsigned int hp_mask_size,
+                unsigned char* input_rchannel,
+                unsigned char* input_gchannel,
+                unsigned char* input_bchannel,
+                float* lp_mask,
+                float* hp_mask,
+                unsigned char* output_img ) {
 
    /**
     * Create buffers and allocate memory on the device.
     * */
 
-   cl::Buffer inputRchannelBuf(
+   cl::Buffer input_rchannel_buf(
       context,
       CL_MEM_READ_ONLY | CL_MEM_HOST_NO_ACCESS | CL_MEM_COPY_HOST_PTR,
-      imgWidth * imgHeight * sizeof( unsigned char ),
-      inputRchannel );
-   cl::Buffer inputGchannelBuf(
+      img_width * img_height * sizeof( unsigned char ),
+      input_rchannel );
+   cl::Buffer input_gchannel_buf(
       context,
       CL_MEM_READ_ONLY | CL_MEM_HOST_NO_ACCESS | CL_MEM_COPY_HOST_PTR,
-      imgWidth * imgHeight * sizeof( unsigned char ),
-      inputGchannel );
-   cl::Buffer inputBchannelBuf(
+      img_width * img_height * sizeof( unsigned char ),
+      input_gchannel );
+   cl::Buffer input_bchannel_buf(
       context,
       CL_MEM_READ_ONLY | CL_MEM_HOST_NO_ACCESS | CL_MEM_COPY_HOST_PTR,
-      imgWidth * imgHeight * sizeof( unsigned char ),
-      inputBchannel );
-   cl::Buffer grayOutputBuf( context,
+      img_width * img_height * sizeof( unsigned char ),
+      input_bchannel );
+   cl::Buffer gray_output_buf(
+      context,
+      CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS,
+      img_width * img_height * sizeof( unsigned char ) );
+   cl::Buffer lp_mask_buf(
+      context,
+      CL_MEM_READ_ONLY | CL_MEM_HOST_NO_ACCESS | CL_MEM_COPY_HOST_PTR,
+      lp_mask_size * lp_mask_size * sizeof( float ),
+      lp_mask );
+   cl::Buffer hp_mask_buf(
+      context,
+      CL_MEM_READ_ONLY | CL_MEM_HOST_NO_ACCESS | CL_MEM_COPY_HOST_PTR,
+      hp_mask_size * hp_mask_size * sizeof( float ),
+      hp_mask );
+   cl::Buffer lp_output_buf( context,
                              CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS,
-                             imgWidth * imgHeight * sizeof( unsigned char ) );
-   cl::Buffer lpMaskBuf(
-      context,
-      CL_MEM_READ_ONLY | CL_MEM_HOST_NO_ACCESS | CL_MEM_COPY_HOST_PTR,
-      lpMaskSize * lpMaskSize * sizeof( float ),
-      lpMask );
-   cl::Buffer hpMaskBuf(
-      context,
-      CL_MEM_READ_ONLY | CL_MEM_HOST_NO_ACCESS | CL_MEM_COPY_HOST_PTR,
-      hpMaskSize * hpMaskSize * sizeof( float ),
-      hpMask );
-   cl::Buffer lpOutputBuf( context,
-                           CL_MEM_READ_WRITE | CL_MEM_HOST_NO_ACCESS,
-                           imgWidth * imgHeight * sizeof( unsigned char ) );
-   cl::Buffer hpOutputBuf( context,
-                           CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY,
-                           imgWidth * imgHeight * sizeof( unsigned char ) );
+                             img_width * img_height * sizeof( unsigned char ) );
+   cl::Buffer hp_output_buf( context,
+                             CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY,
+                             img_width * img_height * sizeof( unsigned char ) );
 
    /**
     * Initialize grayscale kernel.
     * */
 
-   cl::Kernel grayKernel( program, "rgb2gray" );
-   grayKernel.setArg( 0, inputRchannelBuf );
-   grayKernel.setArg( 1, inputGchannelBuf );
-   grayKernel.setArg( 2, inputBchannelBuf );
-   grayKernel.setArg( 3, grayOutputBuf );
+   cl::Kernel gray_kernel( program, "rgb2gray" );
+   gray_kernel.setArg( 0, input_rchannel_buf );
+   gray_kernel.setArg( 1, input_gchannel_buf );
+   gray_kernel.setArg( 2, input_bchannel_buf );
+   gray_kernel.setArg( 3, gray_output_buf );
 
    /**
     * Initialize low-pass filter kernel.
     * */
-   cl::Kernel lpKernel( program, "filterImageWithCache" );
-   lpKernel.setArg( 0, sizeof( unsigned int ), &lpMaskSize );
-   lpKernel.setArg( 1, grayOutputBuf );
-   lpKernel.setArg( 2, lpMaskBuf );
-   lpKernel.setArg( 3, lpOutputBuf );
+   cl::Kernel lp_kernel( program, "filterImageWithCache" );
+   lp_kernel.setArg( 0, sizeof( unsigned int ), &lp_mask_size );
+   lp_kernel.setArg( 1, gray_output_buf );
+   lp_kernel.setArg( 2, lp_mask_buf );
+   lp_kernel.setArg( 3, lp_output_buf );
 
    /**
     * Initialize high-pass filter kernel.
     * */
 
-   cl::Kernel hpKernel( program, "filterImageWithCache" );
-   hpKernel.setArg( 0, sizeof( unsigned int ), &hpMaskSize );
-   hpKernel.setArg( 1, lpOutputBuf );
-   hpKernel.setArg( 2, hpMaskBuf );
-   hpKernel.setArg( 3, hpOutputBuf );
+   cl::Kernel hp_kernel( program, "filterImageWithCache" );
+   hp_kernel.setArg( 0, sizeof( unsigned int ), &hp_mask_size );
+   hp_kernel.setArg( 1, lp_output_buf );
+   hp_kernel.setArg( 2, hp_mask_buf );
+   hp_kernel.setArg( 3, hp_output_buf );
 
    /**
     * Execute kernel functions and collect the final result.
     * */
 
    cl::CommandQueue queue( context, device );
-   queue.enqueueNDRangeKernel( grayKernel,
+   queue.enqueueNDRangeKernel( gray_kernel,
                                cl::NullRange,
-                               cl::NDRange( imgWidth, imgHeight ) );
-   queue.enqueueNDRangeKernel( lpKernel,
+                               cl::NDRange( img_width, img_height ) );
+   queue.enqueueNDRangeKernel( lp_kernel,
                                cl::NullRange,
-                               cl::NDRange( imgWidth, imgHeight ),
+                               cl::NDRange( img_width, img_height ),
                                cl::NDRange( 16, 16 ) );
-   queue.enqueueNDRangeKernel( hpKernel,
+   queue.enqueueNDRangeKernel( hp_kernel,
                                cl::NullRange,
-                               cl::NDRange( imgWidth, imgHeight ),
+                               cl::NDRange( img_width, img_height ),
                                cl::NDRange( 16, 16 ) );
-   queue.enqueueReadBuffer( hpOutputBuf,
+   queue.enqueueReadBuffer( hp_output_buf,
                             CL_TRUE,
                             0,
-                            imgWidth * imgHeight * sizeof( unsigned char ),
-                            outputImg );
+                            img_width * img_height * sizeof( unsigned char ),
+                            output_img );
 }
 
 // =================================================================
@@ -404,32 +411,33 @@ void parFilter( unsigned int imgWidth,
  * Sequentially convert an RGB image to grayscale.
  */
 
-void seqRgb2Gray( unsigned int imgWidth,
-                  unsigned int imgHeight,
-                  unsigned char* rChannel,
-                  unsigned char* gChannel,
-                  unsigned char* bChannel,
-                  unsigned char* grayImg ) {
+void seqRgb2Gray( unsigned int img_width,
+                  unsigned int img_height,
+                  const unsigned char* r_channel,
+                  const unsigned char* g_channel,
+                  const unsigned char* b_channel,
+                  unsigned char* gray_img ) {
 
    /**
     * Declare the current index variable.
     */
 
-   size_t idx;
+   unsigned int idx;
 
    /**
     * Loop over input image pixels.
     */
 
-   for( int i = 0; i < imgWidth; i++ ) {
-      for( int j = 0; j < imgHeight; j++ ) {
+   for( unsigned int i = 0; i < img_width; i++ ) {
+      for( unsigned int j = 0; j < img_height; j++ ) {
 
          /**
           * Compute average pixel.
           */
 
-         idx = i + j * imgWidth;
-         grayImg[idx] = ( rChannel[idx] + gChannel[idx] + bChannel[idx] ) / 3;
+         idx = i + j * img_width;
+         gray_img[idx]
+            = ( r_channel[idx] + g_channel[idx] + b_channel[idx] ) / 3;
       }
    }
 }
@@ -438,28 +446,28 @@ void seqRgb2Gray( unsigned int imgWidth,
  * Sequentially convolve an image with a filter mask.
  */
 
-void seqConvolve( unsigned int imgWidth,
-                  unsigned int imgHeight,
-                  unsigned int maskSize,
-                  unsigned char* inputImg,
-                  float* mask,
-                  unsigned char* outputImg ) {
+void seqConvolve( unsigned int img_width,
+                  unsigned int img_height,
+                  unsigned int mask_size,
+                  const unsigned char* input_img,
+                  const float* mask,
+                  unsigned char* output_img ) {
    /**
     * Loop through input image.
     * */
 
-   for( size_t i = 0; i < imgWidth; i++ ) {
-      for( size_t j = 0; j < imgHeight; j++ ) {
+   for( size_t i = 0; i < img_width; i++ ) {
+      for( size_t j = 0; j < img_height; j++ ) {
 
          /**
           * Check if the mask cannot be applied to the
           * current image pixel.
           * */
 
-         if( i < maskSize / 2 || j < maskSize / 2
-             || i >= imgWidth - maskSize / 2
-             || j >= imgHeight - maskSize / 2 ) {
-            outputImg[i + j * imgWidth] = 0;
+         if( i < mask_size / 2 || j < mask_size / 2
+             || i >= img_width - mask_size / 2
+             || j >= img_height - mask_size / 2 ) {
+            output_img[i + j * img_width] = 0;
             continue;
          }
 
@@ -467,14 +475,17 @@ void seqConvolve( unsigned int imgWidth,
           * Apply mask based on the neighborhood of pixel inputImg(j,i).
           * */
 
-         int outSum = 0;
-         for( size_t k = 0; k < maskSize; k++ ) {
-            for( size_t l = 0; l < maskSize; l++ ) {
-               size_t colIdx = i - maskSize / 2 + k;
-               size_t rowIdx = j - maskSize / 2 + l;
-               size_t maskIdx
-                  = ( maskSize - 1 - k ) + ( maskSize - 1 - l ) * maskSize;
-               outSum += inputImg[rowIdx * imgWidth + colIdx] * mask[maskIdx];
+         int out_sum = 0;
+         for( size_t k = 0; k < mask_size; k++ ) {
+            for( size_t l = 0; l < mask_size; l++ ) {
+               size_t col_idx = i - mask_size / 2 + k;
+               size_t row_idx = j - mask_size / 2 + l;
+               size_t mask_idx
+                  = ( mask_size - 1 - k ) + ( mask_size - 1 - l ) * mask_size;
+               out_sum += static_cast< int >(
+                  static_cast< float >(
+                     input_img[row_idx * img_width + col_idx] )
+                  * mask[mask_idx] );
             }
          }
 
@@ -482,12 +493,13 @@ void seqConvolve( unsigned int imgWidth,
           * Update output pixel.
           * */
 
-         if( outSum < 0 ) {
-            outputImg[i + j * imgWidth] = 0;
-         } else if( outSum > 255 ) {
-            outputImg[i + j * imgWidth] = 255;
+         if( out_sum < 0 ) {
+            output_img[i + j * img_width] = 0;
+         } else if( out_sum > 255 ) {
+            output_img[i + j * img_width] = 255;
          } else {
-            outputImg[i + j * imgWidth] = outSum;
+            output_img[i + j * img_width]
+               = static_cast< unsigned char >( out_sum );
          }
       }
    }
@@ -497,64 +509,76 @@ void seqConvolve( unsigned int imgWidth,
  * Sequentially filter an image.
  */
 
-void seqFilter( unsigned int imgWidth,
-                unsigned int imgHeight,
-                unsigned int lpMaskSize,
-                unsigned int hpMaskSize,
-                unsigned char* inputRchannel,
-                unsigned char* inputGchannel,
-                unsigned char* inputBchannel,
-                float* lpMask,
-                float* hpMask,
-                unsigned char* outputImg ) {
+void seqFilter( unsigned int img_width,
+                unsigned int img_height,
+                unsigned int lp_mask_size,
+                unsigned int hp_mask_size,
+                unsigned char* input_rchannel,
+                unsigned char* input_gchannel,
+                unsigned char* input_bchannel,
+                float* lp_mask,
+                float* hp_mask,
+                unsigned char* output_img ) {
 
    /**
     * Convert input image to grayscale.
     */
 
-   unsigned char* grayOut = (unsigned char*)malloc( imgWidth * imgHeight
-                                                    * sizeof( unsigned char ) );
-   seqRgb2Gray( imgWidth,
-                imgHeight,
-                inputRchannel,
-                inputGchannel,
-                inputBchannel,
-                grayOut );
+   unsigned char* gray_out = static_cast< unsigned char* >(
+      malloc( img_width * img_height * sizeof( unsigned char ) ) );
+   seqRgb2Gray( img_width,
+                img_height,
+                input_rchannel,
+                input_gchannel,
+                input_bchannel,
+                gray_out );
 
    /**
     * Apply the low-pass filter.
     */
 
-   unsigned char* lpOut = (unsigned char*)malloc( imgWidth * imgHeight
-                                                  * sizeof( unsigned char ) );
-   seqConvolve( imgWidth, imgHeight, lpMaskSize, grayOut, lpMask, lpOut );
+   unsigned char* lp_out = static_cast< unsigned char* >(
+      malloc( img_width * img_height * sizeof( unsigned char ) ) );
+   seqConvolve( img_width,
+                img_height,
+                lp_mask_size,
+                gray_out,
+                lp_mask,
+                lp_out );
 
    /**
     * Apply the high-pass filter.
     */
 
-   seqConvolve( imgWidth, imgHeight, hpMaskSize, lpOut, hpMask, outputImg );
+   seqConvolve( img_width,
+                img_height,
+                hp_mask_size,
+                lp_out,
+                hp_mask,
+                output_img );
 }
 
 /**
  * Display unsigned char matrix as an image.
  * */
 
-void displayImg( unsigned char* img, int imgWidth, int imgHeight ) {
+void displayImg( const unsigned char* img,
+                 unsigned int img_width,
+                 unsigned int img_height ) {
 
    /**
     * Create C_IMG object.
     * */
 
-   CImg< unsigned char > cimg( imgWidth, imgHeight );
+   CImg< unsigned char > cimg( img_width, img_height );
 
    /**
     * Transfer image data to C_IMG object.
     * */
 
-   for( int i = 0; i < imgWidth; i++ ) {
-      for( int j = 0; j < imgHeight; j++ ) {
-         cimg( i, j ) = img[i + imgWidth * j];
+   for( unsigned int i = 0; i < img_width; i++ ) {
+      for( unsigned int j = 0; j < img_height; j++ ) {
+         cimg( i, j ) = img[i + img_width * j];
       }
    }
 
@@ -569,11 +593,11 @@ void displayImg( unsigned char* img, int imgWidth, int imgHeight ) {
  * Check if the images img1 and img2 are equal.
  * */
 
-bool checkEquality( unsigned char* img1,
-                    unsigned char* img2,
-                    const int M,
-                    const int N ) {
-   for( int i = 0; i < M * N; i++ ) {
+bool checkEquality( const unsigned char* img1,
+                    const unsigned char* img2,
+                    const unsigned int m,
+                    const unsigned int n ) {
+   for( unsigned int i = 0; i < m * n; i++ ) {
       if( img1[i] != img2[i] ) {
          return false;
       }
