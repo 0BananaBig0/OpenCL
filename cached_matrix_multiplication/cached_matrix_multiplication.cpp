@@ -11,26 +11,24 @@
 cl::Device getDefaultDevice();
 // Inicialize device and compile kernel code.
 void initializeDevice();
+// Sequentially performs the operation c[m,n] = a[m,k] * b[k,n].
 void seqMultiplyMatrices( const int* a,
                           const int* b,
                           int* c,
                           const size_t m,
                           const size_t n,
-                          // Sequentially performs the operation c[m,n] = a[m,k]
-                          // * b[k,n].
                           const size_t k );
+// Parallelly performs the operation c[m,n] = a[m,k] * b[k,n].
 void parMultiplyMatrices( int* a,
                           int* b,
                           int* c,
                           const size_t m,
                           const size_t n,
-                          // Parallelly performs the operation c[m,n] = a[m,k]
-                          // * b[k,n].
                           const size_t k );
+// Check if the matrices c1 and c2 are equal.
 bool checkEquality( const int* c1,
                     const int* c2,
                     const size_t m,
-                    // Check if the matrices c1 and c2 are equal.
                     const size_t n );
 
 // =================================================================
