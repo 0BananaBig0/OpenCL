@@ -2,7 +2,7 @@
 #											 Makefile
 #		Makefile to build exe
 #################################################################
-.PHONY: clean, all
+.PHONY: clean all dbg
 
 CC = g++
 SHARED_LIB_PATH =
@@ -11,9 +11,8 @@ SHARED_LIB_PATH =
 SHARED_LIBS =  -lOpenCL -lpthread -lX11
 
 LINK_OPTION = ${SHARED_LIB_PATH} ${SHARED_LIBS}
-INCLUDES = -I.
+INCLUDES = -I. -Istb
 
-# DEBUG = -g
 DEBUG =
 
 CC_FLAGS = ${DEBUG} -fPIC -Wall -Wextra -std=c++17 \
@@ -34,12 +33,15 @@ HEADERS =
 SRCS := $(wildcard *.cpp)
 EXES := $(patsubst %.cpp,%.exe,$(SRCS))
 
+dbg:
+	$(MAKE) all DBG="-g -DDBG -O0"
+
 # Rule to build all executables
 all: $(EXES)
 
 # Rule to compile other .cpp files directly into executables
 $(EXES): %.exe: %.cpp
-	$(CC) $< $(CC_FLAGS) $(LINK_OPTION) $(INCLUDES) -o $@
+	$(CC) $(DBG) $< $(CC_FLAGS) $(LINK_OPTION) $(INCLUDES) -o $@
 
 clean:
 	@echo "Cleaning up ......"

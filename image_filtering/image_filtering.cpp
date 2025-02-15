@@ -1,17 +1,40 @@
+#include <iomanip>
 #define CL_HPP_TARGET_OPENCL_VERSION 300
 #include <CL/opencl.hpp>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#pragma GCC diagnostic push
+// Disable unused variable warning
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+// Warnings from this header will be ignored
+#include <stb_image_write.h>
+// Revert back to the previous state
+#pragma GCC diagnostic pop
+
 #include <fstream>
 #include <iostream>
 #include <string.h>
 #include <time.h>
 
-#include "CImg.h"
-using namespace cimg_library;
-
+#ifdef DBG
+   #define IF_MES( tof, mes )      \
+      if( tof ) {                  \
+         std::cout << mes << "\n"; \
+      }
+#else
+   #define IF_MES( tof, mes ) tof
+#endif
 // =================================================================
 // ---------------------- Secondary Functions ----------------------
 // =================================================================
 
+void convertInterleavedToPlanar( const unsigned char* inter_img,
+                                 unsigned char* plan_image,
+                                 int width,
+                                 int height,
+                                 int channels );
 // Sequentially convert an RGB image to grayscale.
 void seqRgb2Gray( unsigned int img_width,
                   unsigned int img_height,
@@ -45,11 +68,6 @@ bool checkEquality( const unsigned char* img1,
                     const unsigned char* img2,
                     const unsigned int m,
                     const unsigned int n );
-
-// Display unsigned char matrix as an image.
-void displayImg( const unsigned char* img,
-                 unsigned int img_width,
-                 unsigned int img_height );
 
 // =================================================================
 // ------------------------ OpenCL Functions -----------------------
@@ -96,11 +114,32 @@ int main() {
    /**
     * Load input image.
     * */
+#ifdef DBG
+   constexpr int width = 128;
+   constexpr int height = 64;
+   constexpr int channels = 3;
+   unsigned char img[width][height][channels];
+   unsigned char* input_img_inter = &img[0][0][0];
+   for( int i = 0; i < width * height * channels; i++ ) {
+      input_img_inter[i] = static_cast< unsigned char >( i );
+   }
+#else
+   int width, height, channels;
+   unsigned char* input_img_inter
+      = stbi_load( "input_img.jpg", &width, &height, &channels, 0 );
+#endif
 
-   CImg< unsigned char > cimg( "input_img.jpg" );
-   unsigned char* input_img = cimg.data();
-   unsigned int img_width = static_cast< unsigned int >( cimg.width() );
-   unsigned int img_height = static_cast< unsigned int >( cimg.height() );
+   // Convert source to target format.
+   unsigned int img_width = static_cast< unsigned int >( width );
+   unsigned int img_height = static_cast< unsigned int >( height );
+   unsigned int img_channels = static_cast< unsigned int >( channels );
+   unsigned char* input_img = static_cast< unsigned char* >( malloc(
+      img_width * img_height * img_channels * sizeof( unsigned char ) ) );
+   convertInterleavedToPlanar( input_img_inter,
+                               input_img,
+                               width,
+                               height,
+                               channels );
    unsigned char* input_rchannel = &input_img[0];
    unsigned char* input_gchannel = &input_img[img_width * img_height];
    unsigned char* input_bchannel = &input_img[2 * img_width * img_height];
@@ -209,7 +248,12 @@ int main() {
     * Display filtered image.
     * */
 
-   displayImg( par_filtered_img, img_width, img_height );
+   free( input_img );
+#ifndef DBG
+   free( input_img_inter );
+#endif
+   free( seq_filtered_img );
+   free( par_filtered_img );
    return 0;
 }
 
@@ -314,7 +358,6 @@ void parFilter( unsigned int img_width,
    /**
     * Create buffers and allocate memory on the device.
     * */
-
    cl::Buffer input_rchannel_buf(
       context,
       CL_MEM_READ_ONLY | CL_MEM_HOST_NO_ACCESS | CL_MEM_COPY_HOST_PTR,
@@ -356,46 +399,59 @@ void parFilter( unsigned int img_width,
     * */
 
    cl::Kernel gray_kernel( program, "rgb2gray" );
-   gray_kernel.setArg( 0, input_rchannel_buf );
-   gray_kernel.setArg( 1, input_gchannel_buf );
-   gray_kernel.setArg( 2, input_bchannel_buf );
-   gray_kernel.setArg( 3, gray_output_buf );
+   IF_MES( gray_kernel.setArg( 0, input_rchannel_buf ),
+           "Fail to set arg 0 of gray_kernel." );
+   IF_MES( gray_kernel.setArg( 1, input_gchannel_buf ),
+           "Fail to set arg 1 of gray_kernel." );
+   IF_MES( gray_kernel.setArg( 2, input_bchannel_buf ),
+           "Fail to set arg 2 of gray_kernel." );
+   IF_MES( gray_kernel.setArg( 3, gray_output_buf ),
+           "Fail to set arg 3 of gray_kernel." );
 
    /**
     * Initialize low-pass filter kernel.
     * */
-   cl::Kernel lp_kernel( program, "filterImageWithCache" );
-   lp_kernel.setArg( 0, sizeof( unsigned int ), &lp_mask_size );
-   lp_kernel.setArg( 1, gray_output_buf );
-   lp_kernel.setArg( 2, lp_mask_buf );
-   lp_kernel.setArg( 3, lp_output_buf );
+   cl::Kernel lp_kernel( program, "filterImage" );
+   IF_MES( lp_kernel.setArg( 0, sizeof( unsigned int ), &lp_mask_size ),
+           "Fail to set arg 0 of lp_kernel." );
+   IF_MES( lp_kernel.setArg( 1, gray_output_buf ),
+           "Fail to set arg 1 of lp_kernel." );
+   IF_MES( lp_kernel.setArg( 2, lp_mask_buf ),
+           "Fail to set arg 2 of lp_kernel." );
+   IF_MES( lp_kernel.setArg( 3, lp_output_buf ),
+           "Fail to set arg 3 of lp_kernel." );
 
    /**
     * Initialize high-pass filter kernel.
     * */
 
-   cl::Kernel hp_kernel( program, "filterImageWithCache" );
-   hp_kernel.setArg( 0, sizeof( unsigned int ), &hp_mask_size );
-   hp_kernel.setArg( 1, lp_output_buf );
-   hp_kernel.setArg( 2, hp_mask_buf );
-   hp_kernel.setArg( 3, hp_output_buf );
+   cl::Kernel hp_kernel( program, "filterImage" );
+   IF_MES( hp_kernel.setArg( 0, sizeof( unsigned int ), &hp_mask_size ),
+           "Fail to set arg j0 of hp_kernel." );
+   IF_MES( hp_kernel.setArg( 1, lp_output_buf ),
+           "Fail to set arg 1 of hp_kernel." );
+   IF_MES( hp_kernel.setArg( 2, hp_mask_buf ),
+           "Fail to set arg 2 of hp_kernel." );
+   IF_MES( hp_kernel.setArg( 3, hp_output_buf ),
+           "Fail to set arg 3 of hp_kernel." );
 
    /**
     * Execute kernel functions and collect the final result.
     * */
 
    cl::CommandQueue queue( context, device );
-   queue.enqueueNDRangeKernel( gray_kernel,
-                               cl::NullRange,
-                               cl::NDRange( img_width, img_height ) );
-   queue.enqueueNDRangeKernel( lp_kernel,
-                               cl::NullRange,
-                               cl::NDRange( img_width, img_height ),
-                               cl::NDRange( 16, 16 ) );
-   queue.enqueueNDRangeKernel( hp_kernel,
-                               cl::NullRange,
-                               cl::NDRange( img_width, img_height ),
-                               cl::NDRange( 16, 16 ) );
+   IF_MES( queue.enqueueNDRangeKernel( gray_kernel,
+                                       cl::NullRange,
+                                       cl::NDRange( img_width, img_height ) ),
+           "gray_kernel not works." );
+   IF_MES( queue.enqueueNDRangeKernel( lp_kernel,
+                                       cl::NullRange,
+                                       cl::NDRange( img_width, img_height ) ),
+           "lp_kernel not works" );
+   IF_MES( queue.enqueueNDRangeKernel( hp_kernel,
+                                       cl::NullRange,
+                                       cl::NDRange( img_width, img_height ) ),
+           "hp_kernel not works" );
    queue.enqueueReadBuffer( hp_output_buf,
                             CL_TRUE,
                             0,
@@ -428,14 +484,14 @@ void seqRgb2Gray( unsigned int img_width,
     * Loop over input image pixels.
     */
 
-   for( unsigned int i = 0; i < img_width; i++ ) {
-      for( unsigned int j = 0; j < img_height; j++ ) {
+   for( unsigned int i = 0; i < img_height; i++ ) {
+      for( unsigned int j = 0; j < img_width; j++ ) {
 
          /**
           * Compute average pixel.
           */
 
-         idx = i + j * img_width;
+         idx = i * img_width + j;
          gray_img[idx]
             = ( r_channel[idx] + g_channel[idx] + b_channel[idx] ) / 3;
       }
@@ -456,8 +512,8 @@ void seqConvolve( unsigned int img_width,
     * Loop through input image.
     * */
 
-   for( size_t i = 0; i < img_width; i++ ) {
-      for( size_t j = 0; j < img_height; j++ ) {
+   for( size_t i = 0; i < img_height; i++ ) {
+      for( size_t j = 0; j < img_width; j++ ) {
 
          /**
           * Check if the mask cannot be applied to the
@@ -465,9 +521,9 @@ void seqConvolve( unsigned int img_width,
           * */
 
          if( i < mask_size / 2 || j < mask_size / 2
-             || i >= img_width - mask_size / 2
-             || j >= img_height - mask_size / 2 ) {
-            output_img[i + j * img_width] = 0;
+             || i >= img_height - mask_size / 2
+             || j >= img_width - mask_size / 2 ) {
+            output_img[i * img_width + j] = 0;
             continue;
          }
 
@@ -478,10 +534,10 @@ void seqConvolve( unsigned int img_width,
          int out_sum = 0;
          for( size_t k = 0; k < mask_size; k++ ) {
             for( size_t l = 0; l < mask_size; l++ ) {
-               size_t col_idx = i - mask_size / 2 + k;
-               size_t row_idx = j - mask_size / 2 + l;
+               size_t row_idx = i - mask_size / 2 + k;
+               size_t col_idx = j - mask_size / 2 + l;
                size_t mask_idx
-                  = ( mask_size - 1 - k ) + ( mask_size - 1 - l ) * mask_size;
+                  = ( mask_size - 1 - l ) + ( mask_size - 1 - k ) * mask_size;
                out_sum += static_cast< int >(
                   static_cast< float >(
                      input_img[row_idx * img_width + col_idx] )
@@ -494,11 +550,11 @@ void seqConvolve( unsigned int img_width,
           * */
 
          if( out_sum < 0 ) {
-            output_img[i + j * img_width] = 0;
+            output_img[i * img_width + j] = 0;
          } else if( out_sum > 255 ) {
-            output_img[i + j * img_width] = 255;
+            output_img[i * img_width + j] = 255;
          } else {
-            output_img[i + j * img_width]
+            output_img[i * img_width + j]
                = static_cast< unsigned char >( out_sum );
          }
       }
@@ -559,37 +615,6 @@ void seqFilter( unsigned int img_width,
 }
 
 /**
- * Display unsigned char matrix as an image.
- * */
-
-void displayImg( const unsigned char* img,
-                 unsigned int img_width,
-                 unsigned int img_height ) {
-
-   /**
-    * Create C_IMG object.
-    * */
-
-   CImg< unsigned char > cimg( img_width, img_height );
-
-   /**
-    * Transfer image data to C_IMG object.
-    * */
-
-   for( unsigned int i = 0; i < img_width; i++ ) {
-      for( unsigned int j = 0; j < img_height; j++ ) {
-         cimg( i, j ) = img[i + img_width * j];
-      }
-   }
-
-   /**
-    * Display image.
-    * */
-
-   cimg.display();
-}
-
-/**
  * Check if the images img1 and img2 are equal.
  * */
 
@@ -597,11 +622,58 @@ bool checkEquality( const unsigned char* img1,
                     const unsigned char* img2,
                     const unsigned int m,
                     const unsigned int n ) {
+
+#ifdef DBG
+   std::ofstream file1( "res_img1.txt" );
+   if( file1.is_open() ) {
+      for( unsigned int i = 0; i < m; i++ ) {
+         for( unsigned int j = 0; j < n; j++ ) {
+            file1 << std::setfill( '0' ) << std::setw( 3 )
+                  << static_cast< int >( img1[i * n + j] ) << " ";
+         }
+         file1 << std::endl;
+      }
+      file1.close();
+   };
+
+   std::ofstream file2( "res_img2.txt" );
+   if( file2.is_open() ) {
+      for( unsigned int i = 0; i < m; i++ ) {
+         for( unsigned int j = 0; j < n; j++ ) {
+            file2 << std::setfill( '0' ) << std::setw( 3 )
+                  << static_cast< int >( img2[i * n + j] ) << " ";
+         }
+         file2 << std::endl;
+      }
+      file2.close();
+   };
+#endif
+
    for( unsigned int i = 0; i < m * n; i++ ) {
       if( img1[i] != img2[i] ) {
          return false;
       }
    }
    return true;
+}
+
+void convertInterleavedToPlanar( const unsigned char* inter_img,
+                                 unsigned char* plan_image,
+                                 int width,
+                                 int height,
+                                 int channels ) {
+   int num_pixels = width * height;
+
+   // Reorganize interleaved data (R, G, B) into planar format (R, G, B)
+   for( int i = 0; i < num_pixels; ++i ) {
+      // For the planar format, we need to copy channels to the appropriate
+      // positions in the output array
+      // Red channel (R1, R2, R3, ...)
+      plan_image[i] = inter_img[i * channels];
+      // Green channel (G1, G2, G3, ...)
+      plan_image[num_pixels + i] = inter_img[i * channels + 1];
+      // Blue channel (B1, B2, B3, ...)
+      plan_image[2 * num_pixels + i] = inter_img[i * channels + 2];
+   }
 }
 

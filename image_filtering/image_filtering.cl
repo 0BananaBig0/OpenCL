@@ -2,27 +2,28 @@
  * This kernel function converts an RBG image to grayscale.
  */
 
-__kernel void rgb2gray( __constant unsigned char* inputRchannel,
-                        __constant unsigned char* inputGchannel,
-                        __constant unsigned char* inputBchannel,
-                        __global unsigned char* outputImg ) {
+__kernel void rgb2gray( const __constant unsigned char* input_rchannel,
+                        const __constant unsigned char* input_gchannel,
+                        const __constant unsigned char* input_bchannel,
+                        __global unsigned char* output_img ) {
 
    /**
     * Get work-item identifiers.
     */
 
-   int colIndex = get_global_id( 0 );
-   int rowIndex = get_global_id( 1 );
-   int imgWidth = get_global_size( 0 );
-   int index = ( rowIndex * imgWidth ) + colIndex;
+   int col_index = (int)get_global_id( 0 );
+   int row_index = (int)get_global_id( 1 );
+   int img_width = (int)get_global_size( 0 );
+   int index = ( row_index * img_width ) + col_index;
 
    /**
     * Compute output pixel.
     * */
 
-   outputImg[index]
-      = ( inputRchannel[index] + inputGchannel[index] + inputBchannel[index] )
-      / 3;
+   output_img[index] = ( input_rchannel[index] + input_gchannel[index]
+                         + input_bchannel[index] )
+                     / 3;
+   // printf( "%d\n", output_img[index] );
 }
 
 /**
@@ -30,30 +31,30 @@ __kernel void rgb2gray( __constant unsigned char* inputRchannel,
  * with a mask of size maskSize.
  */
 
-__kernel void filterImage( const unsigned int maskSize,
-                           __global unsigned char* inputImg,
-                           __constant float* mask,
-                           __global unsigned char* outputImg ) {
+__kernel void filterImage( const unsigned int mask_size,
+                           const __global unsigned char* input_img,
+                           const __constant float* mask,
+                           __global unsigned char* output_img ) {
 
    /**
     * Get work-item identifiers.
     */
 
-   int colIndex = get_global_id( 0 );
-   int rowIndex = get_global_id( 1 );
-   int imgWidth = get_global_size( 0 );
-   int imgHeight = get_global_size( 1 );
-   int index = ( rowIndex * imgWidth ) + colIndex;
+   int col_index = (int)get_global_id( 0 );
+   int row_index = (int)get_global_id( 1 );
+   int img_width = (int)get_global_size( 0 );
+   int img_height = (int)get_global_size( 1 );
+   int index = ( row_index * img_width ) + col_index;
 
    /**
     * Check if the mask cannot be applied to the
     * current pixel.
     * */
 
-   if( colIndex < maskSize / 2 || rowIndex < maskSize / 2
-       || colIndex >= imgWidth - maskSize / 2
-       || rowIndex >= imgHeight - maskSize / 2 ) {
-      outputImg[index] = 0;
+   if( col_index < (int)mask_size / 2 || row_index < (int)mask_size / 2
+       || col_index >= img_width - (int)mask_size / 2
+       || row_index >= img_height - (int)mask_size / 2 ) {
+      output_img[index] = 0;
       return;
    }
 
@@ -61,24 +62,25 @@ __kernel void filterImage( const unsigned int maskSize,
     * Apply mask based on the neighborhood of pixel inputImg(index).
     * */
 
-   int outSum = 0;
-   for( size_t k = 0; k < maskSize; k++ ) {
-      for( size_t l = 0; l < maskSize; l++ ) {
+   int out_sum = 0;
+   for( size_t k = 0; k < mask_size; k++ ) {
+      for( size_t l = 0; l < mask_size; l++ ) {
 
          /**
           * Calculate the current mask index.
           */
 
-         size_t maskIdx
-            = ( maskSize - 1 - k ) + ( maskSize - 1 - l ) * maskSize;
+         size_t mask_idx
+            = ( mask_size - 1 - k ) + ( mask_size - 1 - l ) * mask_size;
 
          /**
           * Compute output pixel.
           */
 
-         size_t colIdx = colIndex - maskSize / 2 + k;
-         size_t rowIdx = rowIndex - maskSize / 2 + l;
-         outSum += inputImg[rowIdx * imgWidth + colIdx] * mask[maskIdx];
+         size_t col_idx = (size_t)col_index - mask_size / 2 + k;
+         size_t row_idx = (size_t)row_index - mask_size / 2 + l;
+         out_sum += input_img[row_idx * (size_t)img_width + col_idx]
+                  * mask[mask_idx];
       }
    }
 
@@ -86,12 +88,12 @@ __kernel void filterImage( const unsigned int maskSize,
     * Write output pixel.
     * */
 
-   if( outSum < 0 ) {
-      outputImg[index] = 0;
-   } else if( outSum > 255 ) {
-      outputImg[index] = 255;
+   if( out_sum < 0 ) {
+      output_img[index] = 0;
+   } else if( out_sum > 255 ) {
+      output_img[index] = 255;
    } else {
-      outputImg[index] = outSum;
+      output_img[index] = out_sum;
    }
 }
 
