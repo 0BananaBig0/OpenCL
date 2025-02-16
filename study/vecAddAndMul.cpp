@@ -91,7 +91,9 @@ int main() {
    // (5)Check how many devices current platform has and store their
    // information.
    cl_uint num_devices = 0;
-   cl_device_type device_type = CL_DEVICE_TYPE_GPU;   // select one device type
+   // Select one device type.
+   cl_device_type device_type = CL_DEVICE_TYPE_GPU;
+   // Get the number of devices.
    err = clGetDeviceIDs( selected_platform_id,
                          device_type,
                          0,
@@ -102,6 +104,7 @@ int main() {
                 << " has no supported device." << std::endl;
       return err;
    }
+   // Get all devices' ids.
    std::vector< cl_device_id > device_ids( num_devices );
    err = clGetDeviceIDs( selected_platform_id,
                          device_type,
@@ -195,14 +198,20 @@ int main() {
    const char* src_str = src_std_str.c_str();
    auto program_add
       = clCreateProgramWithSource( context, 1, &src_str, nullptr, nullptr );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to create program program_add.\n";
+   }
 
    // 5. build program
-   clBuildProgram( program_add,
-                   1,
-                   &selected_device_id,
-                   "-I.",
-                   nullptr,
-                   nullptr );
+   err = clBuildProgram( program_add,
+                         1,
+                         &selected_device_id,
+                         "-I.",
+                         nullptr,
+                         nullptr );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to build program program_add.\n";
+   }
 
    // 6. create kernel
    // The final stage to obtain a cl_kernel object that can be used to execute
@@ -210,7 +219,10 @@ int main() {
    // Extracting a kernel from a program is similar to obtaining an exported
    // function from a dynamic library. The name of the kernel that the program
    // exports is used to request it from the compiled program object.
-   auto kernel_add = clCreateKernel( program_add, "vecAdd", nullptr );
+   auto kernel_add = clCreateKernel( program_add, "vecAdd", &err );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to create kernel kernel_add.\n";
+   }
 
    // 7. set input data && create memory object
    // In order for data to be transferred to a device, it must first be
@@ -234,54 +246,78 @@ int main() {
    auto mem_object_x = clCreateBuffer( context,
                                        CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
                                        sizeof( int ) * DATA_SIZE,
-                                       input_x,
-                                       nullptr );
+                                       &input_x[0],
+                                       &err );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to create buffer mem_object_x.\n";
+   }
    auto mem_object_y = clCreateBuffer( context,
                                        CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
                                        sizeof( int ) * DATA_SIZE,
-                                       input_y,
-                                       nullptr );
+                                       &input_y[0],
+                                       &err );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to create buffer mem_object_y.\n";
+   }
    auto mem_object_output = clCreateBuffer( context,
                                             CL_MEM_READ_WRITE,
                                             sizeof( int ) * DATA_SIZE,
                                             nullptr,
-                                            nullptr );
-   clEnqueueWriteBuffer( command_queue,
-                         mem_object_x,
-                         false,
-                         0,
-                         sizeof( cl_mem ),
-                         nullptr,
-                         0,
-                         nullptr,
-                         nullptr );
-   clEnqueueWriteBuffer( command_queue,
-                         mem_object_y,
-                         false,
-                         0,
-                         sizeof( cl_mem ),
-                         nullptr,
-                         0,
-                         nullptr,
-                         nullptr );
+                                            &err );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to create buffer mem_object_output.\n";
+   }
+   err = clEnqueueWriteBuffer( command_queue,
+                               mem_object_x,
+                               false,
+                               0,
+                               sizeof( cl_mem ),
+                               &input_x[0],
+                               0,
+                               nullptr,
+                               nullptr );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to write buffer mem_object_x.\n";
+   }
+   err = clEnqueueWriteBuffer( command_queue,
+                               mem_object_y,
+                               false,
+                               0,
+                               sizeof( cl_mem ),
+                               &input_y[0],
+                               0,
+                               nullptr,
+                               nullptr );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to write buffer mem_object_y.\n";
+   }
 
    // 8. set kernel argument
    // A few more steps are required before the kernel can actually be executed.
    // Unlike calling functions in regular C programs, we cannot simply call a
    // kernel by providing a list of arguments.
    // Executing a kernel requires dispatching it through an enqueue function.
-   clSetKernelArg( kernel_add,
-                   1,
-                   sizeof( cl_mem ),
-                   static_cast< const void* >( &mem_object_y ) );
-   clSetKernelArg( kernel_add,
-                   2,
-                   sizeof( cl_mem ),
-                   static_cast< const void* >( &mem_object_output ) );
-   clSetKernelArg( kernel_add,
-                   0,
-                   sizeof( cl_mem ),
-                   static_cast< const void* >( &mem_object_x ) );
+   err = clSetKernelArg( kernel_add,
+                         1,
+                         sizeof( cl_mem ),
+                         static_cast< const void* >( &mem_object_y ) );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to set arg 1 for kernel_add.\n";
+   }
+   err = clSetKernelArg( kernel_add,
+                         2,
+                         sizeof( cl_mem ),
+                         static_cast< const void* >( &mem_object_output ) );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to set arg 2 for kernel_add.\n";
+   }
+   err = clSetKernelArg( kernel_add,
+                         0,
+                         sizeof( cl_mem ),
+                         static_cast< const void* >( &mem_object_x ) );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to set arg 0 for kernel_add.\n";
+   }
 
    // 9. send kernel to execute
    // After any required memory objects are transferred to the device and the
@@ -297,15 +333,18 @@ int main() {
    constexpr size_t work_dim = 3;
    size_t global_work_size[work_dim] = { DATA_SIZE, 1, 1 };
    size_t local_work_size[work_dim] = { 10, 1, 1 };
-   clEnqueueNDRangeKernel( command_queue,
-                           kernel_add,
-                           work_dim,
-                           nullptr,
-                           global_work_size,
-                           local_work_size,
-                           0,
-                           nullptr,
-                           nullptr );
+   err = clEnqueueNDRangeKernel( command_queue,
+                                 kernel_add,
+                                 work_dim,
+                                 nullptr,
+                                 global_work_size,
+                                 local_work_size,
+                                 0,
+                                 nullptr,
+                                 nullptr );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to enqueue kernel kernel_add.\n";
+   }
 
    // 10. read data from output
    // Data contained in host memory is transferred to and from an OpenCL buffer
@@ -315,22 +354,28 @@ int main() {
    // transferred to the device. The buffer is linked to a context, not a
    // device, so it is the runtime that determines the precise time the data is
    // moved.
-   clEnqueueReadBuffer( command_queue,
-                        mem_object_output,
-                        CL_TRUE,
-                        0,
-                        DATA_SIZE * sizeof( int ),
-                        output,
-                        0,
-                        nullptr,
-                        nullptr );
+   err = clEnqueueReadBuffer( command_queue,
+                              mem_object_output,
+                              CL_TRUE,
+                              0,
+                              DATA_SIZE * sizeof( int ),
+                              &output[0],
+                              0,
+                              nullptr,
+                              nullptr );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to read buffer mem_object_output.\n";
+   }
    for( int i = 0; i < DATA_SIZE; i++ ) {
       std::cout << std::setfill( '0' ) << std::setw( 6 ) << output[i] << " ";
    }
    std::cout << std::endl;
    // Retain the buffer object to increment its reference count.
    // Ensuring that the object remains valid as long as it's needed.
-   clRetainMemObject( mem_object_x );
+   err = clRetainMemObject( mem_object_x );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to retain buffer mem_object_x.\n";
+   }
 
    // 11. repeate steps 4-10.
    std::ifstream kernel_file_mul( "vecMul.cl", std::ios::in );
@@ -339,59 +384,102 @@ int main() {
    src_std_str = oss.str();
    src_str = src_std_str.c_str();
    auto program_mul
-      = clCreateProgramWithSource( context, 1, &src_str, nullptr, nullptr );
-   clBuildProgram( program_mul, 0, nullptr, "-I.", nullptr, nullptr );
-   auto kernel_mul = clCreateKernel( program_mul, "vecMul", nullptr );
+      = clCreateProgramWithSource( context, 1, &src_str, nullptr, &err );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to create program program_mul.\n";
+   }
+   err = clBuildProgram( program_mul, 0, nullptr, "-I.", nullptr, nullptr );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to build program program_mul.\n";
+   }
+   auto kernel_mul = clCreateKernel( program_mul, "vecMul", &err );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to create kernel kernel_mul.\n";
+   }
 
    auto mem_object_z = clCreateBuffer( context,
                                        CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
                                        sizeof( int ) * DATA_SIZE,
-                                       input_z,
-                                       nullptr );
+                                       &input_z[0],
+                                       &err );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to create buffer mem_object_z.\n";
+   }
+   err = clEnqueueWriteBuffer( command_queue,
+                               mem_object_z,
+                               false,
+                               0,
+                               sizeof( cl_mem ),
+                               &input_z[0],
+                               0,
+                               nullptr,
+                               nullptr );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to write buffer mem_object_z.\n";
+   }
 
-   clSetKernelArg( kernel_mul,
-                   1,
-                   sizeof( cl_mem ),
-                   static_cast< const void* >( &mem_object_y ) );
-   clSetKernelArg( kernel_mul,
-                   2,
-                   sizeof( cl_mem ),
-                   static_cast< const void* >( &mem_object_output ) );
-   clSetKernelArg( kernel_mul,
-                   0,
-                   sizeof( cl_mem ),
-                   static_cast< const void* >( &mem_object_z ) );
+   err = clSetKernelArg( kernel_mul,
+                         1,
+                         sizeof( cl_mem ),
+                         static_cast< const void* >( &mem_object_y ) );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to set arg 1 for kernel_mul.\n";
+   }
+   err = clSetKernelArg( kernel_mul,
+                         2,
+                         sizeof( cl_mem ),
+                         static_cast< const void* >( &mem_object_output ) );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to set arg 2 for kernel_mul.\n";
+   }
+   err = clSetKernelArg( kernel_mul,
+                         0,
+                         sizeof( cl_mem ),
+                         static_cast< const void* >( &mem_object_z ) );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to set arg 0 for kernel_mul.\n";
+   }
 
-   clEnqueueNDRangeKernel( command_queue,
-                           kernel_mul,
-                           work_dim,
-                           nullptr,
-                           global_work_size,
-                           local_work_size,
-                           0,
-                           nullptr,
-                           nullptr );
+   err = clEnqueueNDRangeKernel( command_queue,
+                                 kernel_mul,
+                                 work_dim,
+                                 nullptr,
+                                 global_work_size,
+                                 local_work_size,
+                                 0,
+                                 nullptr,
+                                 nullptr );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to enqueue kernel kernel_mul.\n";
+   }
 
-   clEnqueueReadBuffer( command_queue,
-                        mem_object_output,
-                        CL_TRUE,
-                        0,
-                        DATA_SIZE * sizeof( int ),
-                        output,
-                        0,
-                        nullptr,
-                        nullptr );
+   err = clEnqueueReadBuffer( command_queue,
+                              mem_object_output,
+                              CL_TRUE,
+                              0,
+                              DATA_SIZE * sizeof( int ),
+                              &output[0],
+                              0,
+                              nullptr,
+                              nullptr );
+   if( err != CL_SUCCESS ) {
+      std::cout << "Fail to read buffer mem_object_output.\n";
+   }
    for( int i = 0; i < DATA_SIZE; i++ ) {
       std::cout << std::setfill( '0' ) << std::setw( 6 ) << output[i] << " ";
    }
    std::cout << std::endl;
 
    // 12. clean up
-   clRetainMemObject( mem_object_y );
-   clRetainMemObject( mem_object_output );
+   clReleaseMemObject( mem_object_x );
+   clReleaseMemObject( mem_object_y );
+   clReleaseMemObject( mem_object_z );
+   clReleaseMemObject( mem_object_output );
    clReleaseCommandQueue( command_queue );
    clReleaseKernel( kernel_add );
+   clReleaseKernel( kernel_mul );
    clReleaseProgram( program_add );
+   clReleaseProgram( program_mul );
    clReleaseContext( context );
 
    return 0;
