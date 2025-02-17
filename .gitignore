@@ -8,3 +8,4 @@
 compile_commands.json
 .vimspector.json
 .vscode
+res_img*.txt
