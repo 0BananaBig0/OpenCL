@@ -68,7 +68,7 @@ int main() {
                                                  &err ) );
    CHECK_ERR( err, "Failed to map buffer" );
 
-   // Initialize data
+   // Initialize data, must after mapping
    for( int i = 0; i < data_size; i++ ) {
       mapped_ptr[i] = 2 * i;
    }
