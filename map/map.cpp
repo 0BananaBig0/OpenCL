@@ -54,6 +54,7 @@ int main() {
    CHECK_ERR( err, "Failed to create buffer" );
 
    // Map buffer (Coarse-Grained Memory)
+   // Mapped memory access is for host use
    int* mapped_ptr
       = static_cast< int* >( clEnqueueMapBuffer( queue,
                                                  buffer,
@@ -72,7 +73,8 @@ int main() {
       mapped_ptr[i] = 2 * i;
    }
 
-   // Unmap buffer, must unmap the buffer before kernel execution.
+   // Unmap buffer, must unmap the buffer before kernel execution
+   // Unmapping transfers ownership back to OpenCL
    err = clEnqueueUnmapMemObject( queue,
                                   buffer,
                                   mapped_ptr,
