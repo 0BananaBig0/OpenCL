@@ -71,8 +71,8 @@ int main() {
    }
 
    // (4) Select platform
-   std::vector< std::string > candidate_platforms = { "Intel(R)", "NVIDIA" };
-   uint32_t select_platform = 1;
+   std::vector< std::string > candidate_platforms = { "Intel(R)", "NVIDIA", "Portable" };
+   uint32_t select_platform = 2;
    cl_platform_id selected_platform_id = nullptr;
    for( uint32_t platform_index = 0; platform_index < num_platforms;
         platform_index++ ) {
@@ -92,7 +92,7 @@ int main() {
    // information.
    cl_uint num_devices = 0;
    // Select one device type.
-   cl_device_type device_type = CL_DEVICE_TYPE_GPU;
+   cl_device_type device_type = CL_DEVICE_TYPE_CPU;
    // Get the number of devices.
    err = clGetDeviceIDs( selected_platform_id,
                          device_type,
@@ -129,8 +129,8 @@ int main() {
    }
 
    // (7)Select device like selecting platform.
-   std::vector< std::string > candidate_devices = { "Intel(R)", "NVIDIA" };
-   uint32_t select_device = 1;
+   std::vector< std::string > candidate_devices = { "Intel(R)", "NVIDIA", "AMD" };
+   uint32_t select_device = 2;
    cl_device_id selected_device_id = nullptr;
    for( uint32_t device_index = 0; device_index < num_devices;
         device_index++ ) {
@@ -159,7 +159,7 @@ int main() {
           reinterpret_cast< cl_context_properties >( selected_platform_id ),
           0 };
    context = clCreateContextFromType( context_properties,
-                                      CL_DEVICE_TYPE_GPU,
+                                      device_type,
                                       nullptr,
                                       nullptr,
                                       &err );
