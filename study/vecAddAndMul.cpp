@@ -71,8 +71,9 @@ int main() {
    }
 
    // (4) Select platform
-   std::vector< std::string > candidate_platforms = { "Intel(R)", "NVIDIA", "Portable" };
-   uint32_t select_platform = 2;
+   std::vector< std::string > candidate_platforms
+      = { "Intel(R)", "NVIDIA", "Portable" };
+   uint32_t select_platform = 1;
    cl_platform_id selected_platform_id = nullptr;
    for( uint32_t platform_index = 0; platform_index < num_platforms;
         platform_index++ ) {
@@ -129,7 +130,8 @@ int main() {
    }
 
    // (7)Select device like selecting platform.
-   std::vector< std::string > candidate_devices = { "Intel(R)", "NVIDIA", "AMD" };
+   std::vector< std::string > candidate_devices
+      = { "Intel(R)", "NVIDIA", "AMD" };
    uint32_t select_device = 2;
    cl_device_id selected_device_id = nullptr;
    for( uint32_t device_index = 0; device_index < num_devices;
@@ -153,6 +155,9 @@ int main() {
    // different contexts cannot be directly shared. The memory of different
    // devices under the same context is the same and can be accessed by each
    // other.
+   // A single device can be associated with multiple contexts. However, while a
+   // single context can manage multiple command queues, a command queue cannot
+   // be bound to multiple contexts.
    cl_context context = nullptr;
    cl_context_properties context_properties[]
       = { CL_CONTEXT_PLATFORM,
@@ -484,4 +489,3 @@ int main() {
 
    return 0;
 }
-

@@ -46,6 +46,8 @@ __kernel void multiplyMatricesWithCache( const __global int* a,
 
    // Determine repeated times.
    // Utilize sliding window technique to calcuate the target result.
+   // If the dimension of one of these two arrays decreases to 1, just the
+   // one-dimension array is need to be cached.
    const int n_sub = (int)k / sub_size;
    for( int i = 0; i < n_sub; i++ ) {
 
@@ -85,4 +87,3 @@ __kernel void multiplyMatricesWithCache( const __global int* a,
 
    c[index] = sum;
 }
-
